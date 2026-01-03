@@ -117,7 +117,12 @@ export async function apiFetch<T>(options: FetchOptions): Promise<FetchResult<T>
     }
   }
 
-  const json = await response.json()
+  let json: Record<string, unknown>
+  try {
+    json = await response.json()
+  } catch {
+    throw new Error('Invalid JSON response')
+  }
 
   // Extract data using dataKey
   let data: T
@@ -129,15 +134,12 @@ export async function apiFetch<T>(options: FetchOptions): Promise<FetchResult<T>
   }
 
   if (options.dataKey && options.dataKey in json) {
-    data = json[options.dataKey]
-    // Put remaining keys into meta
+    data = json[options.dataKey] as T
     for (const [key, value] of Object.entries(json)) {
-      if (key !== options.dataKey) {
-        meta[key] = value
-      }
+      if (key !== options.dataKey) meta[key] = value
     }
   } else {
-    data = json
+    data = json as T
   }
 
   return { data, meta }

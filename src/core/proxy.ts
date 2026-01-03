@@ -1,13 +1,7 @@
-import type { Path, Listener, SubscriberManager } from '../types'
+import type { Path, Listener, SubscriberManager, ProxyContext } from '../types'
 import { KSTATE_PROXY, KSTATE_PATH, KSTATE_SUBSCRIBE, KSTATE_GET_DATA } from '../types'
 
-interface ProxyContext {
-  getData: () => unknown
-  subscribe: (path: Path, listener: Listener) => () => void
-  path: Path
-}
-
-function createReactiveProxy(context: ProxyContext): unknown {
+function createReactiveProxy(context: ProxyContext<unknown>): unknown {
   const handler: ProxyHandler<object> = {
     get(_target, prop) {
       // Handle special symbol properties

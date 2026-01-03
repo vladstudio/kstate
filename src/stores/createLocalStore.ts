@@ -1,92 +1,57 @@
 import type { LocalStoreConfig, LocalStore } from '../types'
 import { createSubscriberManager } from '../core/subscribers'
 import { wrapStoreWithProxy, type StoreInternals } from '../core/proxy'
+import { loadFromStorage, saveToStorage } from '../sync/localStorage'
 
 export function createLocalStore<T>(
   key: string,
   defaultValue: T,
   config: LocalStoreConfig<T> = {}
-): LocalStore<T> {
-  function loadFromStorage(): T | null {
-    if (typeof localStorage === 'undefined') return null
-    try {
-      const stored = localStorage.getItem(key)
-      return stored ? JSON.parse(stored) : null
-    } catch {
-      return null
-    }
-  }
-
-  function saveToStorage(value: T): void {
-    if (typeof localStorage === 'undefined') return
-    try {
-      localStorage.setItem(key, JSON.stringify(value))
-    } catch (error) {
-      console.error('KState: Failed to save to localStorage', error)
-    }
-  }
-
-  // Internal state
-  let data: T = loadFromStorage() ?? defaultValue
-
-  // Subscribers
+): LocalStore<T> & { dispose: () => void } {
+  let data: T = loadFromStorage<T>(key) ?? defaultValue
   const subscribers = createSubscriberManager()
 
-  // Cross-tab sync
+  const onStorage = (event: StorageEvent) => {
+    if (event.key === key && event.newValue !== null) {
+      try {
+        data = JSON.parse(event.newValue)
+        subscribers.notify([[]])
+      } catch { /* ignore */ }
+    }
+  }
+
   if (typeof window !== 'undefined') {
-    window.addEventListener('storage', (event) => {
-      if (event.key === key && event.newValue !== null) {
-        try {
-          data = JSON.parse(event.newValue)
-          subscribers.notify([[]])
-        } catch {
-          // Ignore parse errors
-        }
-      }
-    })
+    window.addEventListener('storage', onStorage)
   }
 
   const storeImpl = {
-    get value(): T {
-      return data
-    },
-
-    get(): T {
-      return data
-    },
-
+    get value(): T { return data },
+    get(): T { return data },
     set(newData: T): void {
       data = newData
-      saveToStorage(data)
+      saveToStorage(key, data)
       subscribers.notify([[]])
       config.onSet?.(data)
     },
-
     patch(partial: Partial<T>): void {
       data = { ...data, ...partial }
-      saveToStorage(data)
+      saveToStorage(key, data)
       subscribers.notify([[]])
       config.onPatch?.(data)
     },
-
     clear(): void {
       data = defaultValue
-      saveToStorage(data)
+      saveToStorage(key, data)
       subscribers.notify([[]])
       config.onClear?.()
     },
+    dispose(): void {
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('storage', onStorage)
+      }
+    },
   }
 
-  const storeInternals: StoreInternals = {
-    getValue: () => data,
-    subscribers,
-  }
-
-  // Create the proxy-wrapped store
-  const proxyStore = wrapStoreWithProxy<Record<string, unknown>>(storeInternals)
-
-  // Merge store methods with proxy
-  const store = Object.assign(proxyStore, storeImpl) as unknown as LocalStore<T>
-
-  return store
+  const storeInternals: StoreInternals = { getValue: () => data, subscribers }
+  return Object.assign(wrapStoreWithProxy<Record<string, unknown>>(storeInternals), storeImpl) as unknown as LocalStore<T> & { dispose: () => void }
 }

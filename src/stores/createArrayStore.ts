@@ -54,7 +54,7 @@ export function createArrayStore<T extends { id: string }>(config: ArrayStoreCon
       const isFresh = lastFetchParams === paramsKey && now - network.getStatus().lastUpdated < ttl
 
       if (isFresh && !force && !isPagination) {
-        if (now - network.getStatus().lastUpdated > ttl / 2) fetchInBackground(endpoint, cleanParams, false)
+        if (now - network.getStatus().lastUpdated > ttl / 2) fetchInBackground(endpoint, cleanParams)
         return items
       }
 
@@ -218,16 +218,11 @@ export function createArrayStore<T extends { id: string }>(config: ArrayStoreCon
     },
   }
 
-  async function fetchInBackground(endpoint: string, params: Record<string, string | number>, isPagination: boolean): Promise<void> {
+  async function fetchInBackground(endpoint: string, params: Record<string, string | number>): Promise<void> {
     network.setStatus({ isRevalidating: true })
     try {
       const result = await apiFetch<T[]>({ method: 'GET', endpoint, params, dataKey: config.dataKey })
-      if (isPagination) {
-        const existingIds = new Set(items.map(i => i.id))
-        items = [...items, ...result.data.filter(i => !existingIds.has(i.id))]
-      } else {
-        items = result.data
-      }
+      items = result.data
       meta = result.meta
       network.setStatus({ isRevalidating: false, error: null, lastUpdated: Date.now() })
       subscribers.notify([[]])
