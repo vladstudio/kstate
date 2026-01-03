@@ -1,14 +1,52 @@
 import type { Path, Listener, SubscriberManager, ProxyContext } from '../types'
 import { KSTATE_PROXY, KSTATE_PATH, KSTATE_SUBSCRIBE, KSTATE_GET_DATA } from '../types'
 
+// Store method names that should be retrieved from target, not data
+const STORE_METHODS = new Set([
+  'get', 'set', 'patch', 'update', 'delete', 'clear', 'dispose',
+  'add', 'create', 'getOne', 'subscribeToStatus', 'status', 'meta'
+])
+
+// Create a proxy wrapper for primitive values that supports subscription
+function createPrimitiveProxy(context: ProxyContext<unknown>): unknown {
+  const wrapper = {
+    [KSTATE_PROXY]: true,
+    [KSTATE_PATH]: context.path,
+    [KSTATE_SUBSCRIBE]: context.subscribe,
+    [KSTATE_GET_DATA]: context.getData,
+    valueOf() { return context.getData() },
+    toString() { return String(context.getData()) },
+    [Symbol.toPrimitive](hint: string) {
+      const value = context.getData()
+      if (hint === 'number') return Number(value)
+      if (hint === 'string') return String(value)
+      return value
+    },
+  }
+  return wrapper
+}
+
 function createReactiveProxy(context: ProxyContext<unknown>): unknown {
   const handler: ProxyHandler<object> = {
-    get(_target, prop) {
+    get(target, prop) {
       // Handle special symbol properties
       if (prop === KSTATE_PROXY) return true
       if (prop === KSTATE_PATH) return context.path
       if (prop === KSTATE_SUBSCRIBE) return context.subscribe
       if (prop === KSTATE_GET_DATA) return context.getData
+
+      // Handle 'value' property - returns the entire data
+      if (prop === 'value') {
+        return context.getData()
+      }
+
+      // Check for store methods on target (not array built-ins)
+      if (typeof prop === 'string' && STORE_METHODS.has(prop)) {
+        const targetValue = (target as Record<string | symbol, unknown>)[prop]
+        if (targetValue !== undefined) {
+          return targetValue
+        }
+      }
 
       const data = context.getData()
       if (data === null || data === undefined) {
@@ -24,15 +62,22 @@ function createReactiveProxy(context: ProxyContext<unknown>): unknown {
       if (prop === Symbol.iterator && Array.isArray(data)) {
         return function* () {
           for (let i = 0; i < data.length; i++) {
-            const newPath = [...context.path, i]
-            yield createReactiveProxy({
-              getData: () => {
-                const d = context.getData()
-                return Array.isArray(d) ? d[i] : undefined
-              },
-              subscribe: context.subscribe,
-              path: newPath,
-            })
+            const item = data[i]
+            // For primitive values, yield directly
+            if (item === null || typeof item !== 'object') {
+              yield item
+            } else {
+              // For objects, yield a proxy
+              const newPath = [...context.path, i]
+              yield createReactiveProxy({
+                getData: () => {
+                  const d = context.getData()
+                  return Array.isArray(d) ? d[i] : undefined
+                },
+                subscribe: context.subscribe,
+                path: newPath,
+              })
+            }
           }
         }
       }
@@ -49,20 +94,25 @@ function createReactiveProxy(context: ProxyContext<unknown>): unknown {
       }
 
       const value = (data as Record<string | symbol, unknown>)[prop]
+      const newPath = [...context.path, prop as string | number]
+      const newGetData = () => {
+        const d = context.getData()
+        if (d === null || d === undefined) return undefined
+        return (d as Record<string | symbol, unknown>)[prop]
+      }
 
-      // For primitive values, return as-is
+      // For primitive values, return a subscribable primitive wrapper
       if (value === null || typeof value !== 'object') {
-        return value
+        return createPrimitiveProxy({
+          getData: newGetData,
+          subscribe: context.subscribe,
+          path: newPath,
+        })
       }
 
       // For objects/arrays, return nested proxy
-      const newPath = [...context.path, prop as string | number]
       return createReactiveProxy({
-        getData: () => {
-          const d = context.getData()
-          if (d === null || d === undefined) return undefined
-          return (d as Record<string | symbol, unknown>)[prop]
-        },
+        getData: newGetData,
         subscribe: context.subscribe,
         path: newPath,
       })

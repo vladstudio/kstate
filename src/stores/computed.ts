@@ -18,7 +18,10 @@ export function computed<R>(
   sourceOrSources: SourceStore | SourceStore[],
   selector: (value: unknown) => R
 ): ComputedStore<R> & { dispose: () => void } {
-  const sources = Array.isArray(sourceOrSources) ? sourceOrSources : [sourceOrSources]
+  // Check if it's a single store (KState proxy) or array of stores
+  // Array.isArray would be true for array store proxies, so check for proxy first
+  const isSingleSource = isKStateProxy(sourceOrSources) || !Array.isArray(sourceOrSources)
+  const sources = isSingleSource ? [sourceOrSources] : sourceOrSources as SourceStore[]
   const subscribers = createSubscriberManager()
   const unsubscribes: (() => void)[] = []
 
@@ -29,9 +32,9 @@ export function computed<R>(
     }
   }
 
-  const getValue = (): R => Array.isArray(sourceOrSources)
-    ? selector(sources.map(s => s.value))
-    : selector(sourceOrSources.value)
+  const getValue = (): R => isSingleSource
+    ? selector(sourceOrSources.value)
+    : selector(sources.map(s => s.value))
 
   const storeImpl = {
     get value(): R { return getValue() },
