@@ -48,47 +48,24 @@ export function useStore<T>(proxyOrStore: unknown): T {
     return store.value
   }, [])
 
-  // For the proxy case, we need to create a stable snapshot reference
-  // to avoid unnecessary re-renders
   const snapshotRef = useRef<unknown>(null)
-  const versionRef = useRef(0)
 
   const getStableSnapshot = useCallback(() => {
-    const newSnapshot = getSnapshot()
-
-    // For primitive values, return directly
-    if (typeof newSnapshot !== 'object' || newSnapshot === null) {
-      if (snapshotRef.current !== newSnapshot) {
-        snapshotRef.current = newSnapshot
-        versionRef.current++
-      }
-      return snapshotRef.current
-    }
-
-    // For objects/arrays, do a shallow comparison
+    const next = getSnapshot()
     const prev = snapshotRef.current
-    if (prev === null || typeof prev !== 'object') {
-      snapshotRef.current = newSnapshot
-      versionRef.current++
-      return snapshotRef.current
-    }
 
-    // Shallow compare
-    if (Array.isArray(newSnapshot) && Array.isArray(prev)) {
-      if (newSnapshot.length !== prev.length || newSnapshot.some((v, i) => v !== prev[i])) {
-        snapshotRef.current = newSnapshot
-        versionRef.current++
-      }
+    if (typeof next !== 'object' || next === null) {
+      if (prev !== next) snapshotRef.current = next
+    } else if (prev === null || typeof prev !== 'object') {
+      snapshotRef.current = next
+    } else if (Array.isArray(next)) {
+      if (!Array.isArray(prev) || next.length !== prev.length || next.some((v, i) => v !== prev[i]))
+        snapshotRef.current = next
     } else {
-      const newKeys = Object.keys(newSnapshot)
-      const prevKeys = Object.keys(prev)
-      if (newKeys.length !== prevKeys.length ||
-          newKeys.some(k => (newSnapshot as Record<string, unknown>)[k] !== (prev as Record<string, unknown>)[k])) {
-        snapshotRef.current = newSnapshot
-        versionRef.current++
-      }
+      const keys = Object.keys(next)
+      if (keys.length !== Object.keys(prev).length || keys.some(k => (next as Record<string, unknown>)[k] !== (prev as Record<string, unknown>)[k]))
+        snapshotRef.current = next
     }
-
     return snapshotRef.current
   }, [getSnapshot])
 
