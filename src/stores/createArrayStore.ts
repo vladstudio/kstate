@@ -14,7 +14,7 @@ export function createArrayStore<T extends { id: string }>(config: ArrayStoreCon
   const ttl = config.ttl ?? 60000
   const reloadOnMount = config.reloadOnMount ?? false
 
-  const doReload = () => { if (lastFetchParams !== null) store.get(JSON.parse(lastFetchParams)) }
+  const doReload = () => { if (lastFetchParams !== null) storeImpl.get(JSON.parse(lastFetchParams)) }
 
   const network = createNetworkManager({
     reloadOnFocus: config.reloadOnFocus ?? false,
@@ -23,7 +23,7 @@ export function createArrayStore<T extends { id: string }>(config: ArrayStoreCon
     onReload: doReload,
   })
 
-  const subscribers = createSubscriberManager(reloadOnMount ? () => store.get() : undefined)
+  const subscribers = createSubscriberManager(reloadOnMount ? () => storeImpl.get() : undefined)
 
   const findIndex = (id: string) => items.findIndex(item => item.id === id)
 
@@ -233,10 +233,11 @@ export function createArrayStore<T extends { id: string }>(config: ArrayStoreCon
     }
   }
 
-  const store = Object.assign(
-    wrapStoreWithProxy<Record<string | number, unknown>>({ getValue: () => items, subscribers }),
-    storeImpl
-  ) as unknown as ArrayStore<T>
+  const proxy = wrapStoreWithProxy<Record<string | number, unknown>>({ getValue: () => items, subscribers })
 
-  return store
+  // Copy all properties including getters from storeImpl to proxy
+  const descriptors = Object.getOwnPropertyDescriptors(storeImpl)
+  Object.defineProperties(proxy, descriptors)
+
+  return proxy as unknown as ArrayStore<T>
 }

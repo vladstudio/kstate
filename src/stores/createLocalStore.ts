@@ -53,5 +53,8 @@ export function createLocalStore<T>(
   }
 
   const storeInternals: StoreInternals = { getValue: () => data, subscribers }
-  return Object.assign(wrapStoreWithProxy<Record<string, unknown>>(storeInternals), storeImpl) as unknown as LocalStore<T> & { dispose: () => void }
+  const proxy = wrapStoreWithProxy<Record<string, unknown>>(storeInternals)
+  const descriptors = Object.getOwnPropertyDescriptors(storeImpl)
+  Object.defineProperties(proxy, descriptors)
+  return proxy as unknown as LocalStore<T> & { dispose: () => void }
 }

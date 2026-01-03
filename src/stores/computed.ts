@@ -21,20 +21,32 @@ export function computed<R>(
   // Check if it's a single store (KState proxy) or array of stores
   // Array.isArray would be true for array store proxies, so check for proxy first
   const isSingleSource = isKStateProxy(sourceOrSources) || !Array.isArray(sourceOrSources)
-  const sources = isSingleSource ? [sourceOrSources] : sourceOrSources as SourceStore[]
+  const sources: SourceStore[] = isSingleSource ? [sourceOrSources as SourceStore] : sourceOrSources as SourceStore[]
   const subscribers = createSubscriberManager()
   const unsubscribes: (() => void)[] = []
 
+  // Cache the computed value to prevent infinite loops with useSyncExternalStore
+  let cachedValue: R | undefined
+  let cacheValid = false
+
   for (const source of sources) {
     if (isKStateProxy(source)) {
-      const unsub = getProxySubscribe(source)?.([], () => subscribers.notify([[]]))
+      const unsub = getProxySubscribe(source)?.([], () => {
+        cacheValid = false // Invalidate cache when source changes
+        subscribers.notify([[]])
+      })
       if (unsub) unsubscribes.push(unsub)
     }
   }
 
-  const getValue = (): R => isSingleSource
-    ? selector(sourceOrSources.value)
-    : selector(sources.map(s => s.value))
+  const getValue = (): R => {
+    if (cacheValid) return cachedValue!
+    cachedValue = isSingleSource
+      ? selector((sourceOrSources as SourceStore).value)
+      : selector(sources.map(s => s.value))
+    cacheValid = true
+    return cachedValue
+  }
 
   const storeImpl = {
     get value(): R { return getValue() },
@@ -42,5 +54,8 @@ export function computed<R>(
   }
 
   const storeInternals: StoreInternals = { getValue, subscribers }
-  return Object.assign(wrapStoreWithProxy<Record<string, unknown>>(storeInternals), storeImpl) as unknown as ComputedStore<R> & { dispose: () => void }
+  const proxy = wrapStoreWithProxy<Record<string, unknown>>(storeInternals)
+  const descriptors = Object.getOwnPropertyDescriptors(storeImpl)
+  Object.defineProperties(proxy, descriptors)
+  return proxy as unknown as ComputedStore<R> & { dispose: () => void }
 }

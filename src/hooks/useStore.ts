@@ -48,11 +48,19 @@ export function useStore<T>(proxyOrStore: unknown): T {
     return store.value
   }, [])
 
-  const snapshotRef = useRef<unknown>(null)
+  // Use a symbol to detect uninitialized state (null could be a valid value)
+  const UNINITIALIZED = useRef(Symbol('uninitialized')).current
+  const snapshotRef = useRef<unknown>(UNINITIALIZED)
 
   const getStableSnapshot = useCallback(() => {
     const next = getSnapshot()
     const prev = snapshotRef.current
+
+    // First call - always store the snapshot
+    if (prev === UNINITIALIZED) {
+      snapshotRef.current = next
+      return next
+    }
 
     if (typeof next !== 'object' || next === null) {
       if (prev !== next) snapshotRef.current = next

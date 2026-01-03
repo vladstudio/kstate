@@ -72,5 +72,8 @@ export function createLocalArrayStore<T extends { id: string }>(
   }
 
   const storeInternals: StoreInternals = { getValue: () => items, subscribers }
-  return Object.assign(wrapStoreWithProxy<Record<string | number, unknown>>(storeInternals), storeImpl) as unknown as LocalArrayStore<T> & { dispose: () => void }
+  const proxy = wrapStoreWithProxy<Record<string | number, unknown>>(storeInternals)
+  const descriptors = Object.getOwnPropertyDescriptors(storeImpl)
+  Object.defineProperties(proxy, descriptors)
+  return proxy as unknown as LocalArrayStore<T> & { dispose: () => void }
 }

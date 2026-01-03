@@ -13,7 +13,7 @@ export function createStore<T extends { id: string }>(config: StoreConfig<T> = {
   const ttl = config.ttl ?? 60000
   const reloadOnMount = config.reloadOnMount ?? false
 
-  const doReload = () => { if (lastFetchParams !== null) store.get(JSON.parse(lastFetchParams)) }
+  const doReload = () => { if (lastFetchParams !== null) storeImpl.get(JSON.parse(lastFetchParams)) }
 
   const network = createNetworkManager({
     reloadOnFocus: config.reloadOnFocus ?? false,
@@ -22,7 +22,7 @@ export function createStore<T extends { id: string }>(config: StoreConfig<T> = {
     onReload: doReload,
   })
 
-  const subscribers = createSubscriberManager(reloadOnMount ? () => store.get() : undefined)
+  const subscribers = createSubscriberManager(reloadOnMount ? () => storeImpl.get() : undefined)
 
   function handleError(error: Error, operation: Operation, params: Record<string, string | number>, rollbackData: T | null): void {
     const meta: ErrorMeta = { operation, endpoint: config.endpoints?.[operation as keyof typeof config.endpoints] ?? '', params, rollbackData }
@@ -165,10 +165,11 @@ export function createStore<T extends { id: string }>(config: StoreConfig<T> = {
     }
   }
 
-  const store = Object.assign(
-    wrapStoreWithProxy<Record<string, unknown>>({ getValue: () => data, subscribers }),
-    storeImpl
-  ) as unknown as Store<T>
+  const proxy = wrapStoreWithProxy<Record<string, unknown>>({ getValue: () => data, subscribers })
 
-  return store
+  // Copy all properties including getters from storeImpl to proxy
+  const descriptors = Object.getOwnPropertyDescriptors(storeImpl)
+  Object.defineProperties(proxy, descriptors)
+
+  return proxy as unknown as Store<T>
 }
