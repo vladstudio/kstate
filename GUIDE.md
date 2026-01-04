@@ -146,6 +146,9 @@ userProfile.clear()
 
 // Access current value (non-reactive)
 console.log(userProfile.value)
+
+// Cleanup (removes event listeners)
+userProfile.dispose()
 ```
 
 #### Configuration Options
@@ -269,6 +272,9 @@ console.log(users.value)
 
 // Access response meta (pagination info, etc.)
 console.log(users.meta) // { page: 1, totalPages: 5, hasMore: true }
+
+// Cleanup (removes event listeners)
+users.dispose()
 ```
 
 #### Configuration Options
@@ -364,6 +370,9 @@ settings.clear()
 
 // Access current value (non-reactive)
 console.log(settings.value)
+
+// Cleanup (removes storage event listener)
+settings.dispose()
 ```
 
 #### Event Handlers
@@ -433,6 +442,9 @@ favorites.clear()
 
 // Access current array (non-reactive)
 console.log(favorites.value)
+
+// Cleanup (removes storage event listener)
+favorites.dispose()
 ```
 
 #### Event Handlers
@@ -530,6 +542,9 @@ function Dashboard() {
     </div>
   )
 }
+
+// Cleanup (unsubscribes from source stores)
+dashboard.dispose()
 ```
 
 ---
@@ -583,13 +598,17 @@ function UserList() {
 | `isRevalidating` | `boolean` | Has data, fetching fresh in background |
 | `isOffline` | `boolean` | `navigator.onLine === false` |
 | `error` | `Error \| null` | Last error (cleared on success) |
-| `lastUpdated` | `number` | Timestamp of last successful fetch |
+| `lastUpdated` | `number` | Timestamp of last successful fetch (read-only, won't trigger re-renders) |
+
+> **Note:** Only changes to `isLoading`, `isRevalidating`, `isOffline`, and `error` trigger re-renders. `lastUpdated` updates silently to avoid unnecessary re-renders.
 
 ---
 
 ## Fine-Grained Reactivity
 
 KState uses proxies for fine-grained subscriptions. Components only re-render when their specific subscribed path changes.
+
+> **Important:** Fine-grained reactivity prevents re-renders from *store updates*. However, if a parent component re-renders for any reason, React will still re-render all children by default. Use `React.memo()` on child components if you need complete isolation.
 
 ### Subscribe to Nested Paths
 
