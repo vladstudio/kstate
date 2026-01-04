@@ -21,9 +21,11 @@ export function createSubscriberManager(onFirstSubscribe?: () => void): Subscrib
 
   function notify(changedPaths: Path[]): void {
     if (subscriptions.size === 0) return
-    for (const subscription of subscriptions) {
-      if (shouldNotify(subscription.path, changedPaths)) subscription.listener()
+    const toCall = new Set<Listener>()
+    for (const sub of subscriptions) {
+      if (shouldNotify(sub.path, changedPaths)) toCall.add(sub.listener)
     }
+    toCall.forEach(fn => fn())
   }
 
   function shouldNotify(subscribedPath: Path, changedPaths: Path[]): boolean {

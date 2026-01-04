@@ -1,14 +1,10 @@
 import { useSyncExternalStore, useCallback, useRef } from 'react'
 import type { Path, Listener } from '../types'
-import {
-  isKStateProxy,
-  getProxyPath,
-  getProxySubscribe,
-  getProxyGetData,
-} from '../core/proxy'
+import { isKStateProxy, getProxyPath, getProxySubscribe, getProxyGetData } from '../core/proxy'
+
+const UNINITIALIZED = Symbol('uninitialized')
 
 export function useStore<T>(proxyOrStore: unknown): T {
-  // Use refs to maintain stable references
   const proxyRef = useRef(proxyOrStore)
   proxyRef.current = proxyOrStore
 
@@ -29,8 +25,7 @@ export function useStore<T>(proxyOrStore: unknown): T {
       return store.subscribers.subscribe([], onStoreChange)
     }
 
-    // No subscription possible
-    return () => {}
+    return () => {} // No subscription possible
   }, [])
 
   const getSnapshot = useCallback(() => {
@@ -48,8 +43,6 @@ export function useStore<T>(proxyOrStore: unknown): T {
     return store.value
   }, [])
 
-  // Use a symbol to detect uninitialized state (null could be a valid value)
-  const UNINITIALIZED = useRef(Symbol('uninitialized')).current
   const snapshotRef = useRef<unknown>(UNINITIALIZED)
 
   const getStableSnapshot = useCallback(() => {

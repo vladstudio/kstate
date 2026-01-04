@@ -4,7 +4,7 @@ import { createNetworkManager } from '../core/network'
 import { wrapStoreWithProxy } from '../core/proxy'
 import { apiFetch } from '../sync/api'
 import { getConfig } from '../config'
-import { getCached, setCache, clearCache } from '../core/cache'
+import { getCached, setCache, clearCache, clearCachePrefix } from '../core/cache'
 
 export function createStore<T extends { id: string }>(config: StoreConfig<T> = {}): Store<T> {
   let data: T | null = null
@@ -51,9 +51,9 @@ export function createStore<T extends { id: string }>(config: StoreConfig<T> = {
 
       const cached = getCached<T>(cacheKey, ttl)
       if (cached) {
-        data = cached
+        data = cached.data
         subscribers.notify([[]])
-        return data
+        if (!cached.stale) return data
       }
 
       if (fetchPromise && inFlightKey === cacheKey) return fetchPromise
@@ -92,6 +92,7 @@ export function createStore<T extends { id: string }>(config: StoreConfig<T> = {
       try {
         const result = await apiFetch<T>({ method: 'PUT', endpoint, params: { id: newData.id }, body: newData, dataKey: config.dataKey, requestKey: config.requestKey })
         data = result.data
+        clearCachePrefix(config.endpoints?.get ?? '')
         network.setStatus({ lastUpdated: Date.now(), error: null })
         subscribers.notify([[]])
         config.onUpdate?.(result.data, result.meta)
@@ -116,6 +117,7 @@ export function createStore<T extends { id: string }>(config: StoreConfig<T> = {
       try {
         const result = await apiFetch<T>({ method: 'PATCH', endpoint, params: { id: partialData.id }, body: partialData, dataKey: config.dataKey, requestKey: config.requestKey })
         data = result.data
+        clearCachePrefix(config.endpoints?.get ?? '')
         network.setStatus({ lastUpdated: Date.now(), error: null })
         subscribers.notify([[]])
         config.onPatch?.(result.data, result.meta)
@@ -138,6 +140,7 @@ export function createStore<T extends { id: string }>(config: StoreConfig<T> = {
 
       try {
         const result = await apiFetch<void>({ method: 'DELETE', endpoint, params })
+        clearCachePrefix(config.endpoints?.get ?? '')
         network.setStatus({ lastUpdated: Date.now(), error: null })
         config.onDelete?.(result.meta)
       } catch (error) {

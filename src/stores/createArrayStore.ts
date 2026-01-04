@@ -4,13 +4,14 @@ import { createNetworkManager } from '../core/network'
 import { wrapStoreWithProxy } from '../core/proxy'
 import { apiFetch } from '../sync/api'
 import { getConfig } from '../config'
-import { getCached, setCache, clearCache } from '../core/cache'
+import { getCached, setCache, clearCache, clearCachePrefix } from '../core/cache'
 
 export function createArrayStore<T extends { id: string }>(config: ArrayStoreConfig<T> = {}): ArrayStore<T> {
   let items: T[] = []
   let meta: Record<string, unknown> = {}
   let lastFetchParams: Record<string, string | number> = {}
   let inFlightKey: string | null = null
+  const inFlightGetOne = new Map<string, Promise<T>>()
   let fetchPromise: Promise<T[]> | null = null
 
   const ttl = config.ttl ?? 60000
@@ -53,12 +54,12 @@ export function createArrayStore<T extends { id: string }>(config: ArrayStoreCon
 
       if (force) clearCache(cacheKey)
 
-      const cached = getCached<{ data: T[]; meta: Record<string, unknown> }>(cacheKey, ttl)
+      const cached = getCached<T[]>(cacheKey, ttl)
       if (cached) {
         items = cached.data
-        meta = cached.meta
+        meta = {}
         subscribers.notify([[]])
-        return items
+        if (!cached.stale) return items
       }
 
       if (fetchPromise && inFlightKey === cacheKey) return fetchPromise
@@ -70,9 +71,11 @@ export function createArrayStore<T extends { id: string }>(config: ArrayStoreCon
       fetchPromise = (async () => {
         try {
           const result = await apiFetch<T[]>({ method: 'GET', endpoint, params: cleanParams, dataKey: config.dataKey })
-          items = result.data
+          const page = typeof cleanParams.page === 'number' ? cleanParams.page : 1
+          const isAppend = items.length > 0 && page > 1
+          items = isAppend ? [...items, ...result.data] : result.data
           meta = result.meta
-          setCache(cacheKey, { data: items, meta })
+          setCache(cacheKey, items)
           network.setStatus({ isLoading: false, isRevalidating: false, error: null, lastUpdated: Date.now() })
           subscribers.notify([[]])
           config.onGet?.(items, result.meta)
@@ -99,28 +102,41 @@ export function createArrayStore<T extends { id: string }>(config: ArrayStoreCon
       if (force) clearCache(cacheKey)
 
       const cached = getCached<T>(cacheKey, ttl)
-      if (cached) return cached
+      if (cached) {
+        const index = findIndex(params.id)
+        if (index >= 0) items = items.map((item, i) => i === index ? cached.data : item)
+        else items = [...items, cached.data]
+        subscribers.notify([[]])
+        if (!cached.stale) return cached.data
+      }
+
+      const inflight = inFlightGetOne.get(cacheKey)
+      if (inflight) return inflight
 
       network.setStatus({ isRevalidating: true })
-      try {
-        const result = await apiFetch<T>({ method: 'GET', endpoint, params: cleanParams, dataKey: config.dataKey })
-        setCache(cacheKey, result.data)
-        const index = findIndex(params.id)
-        if (index >= 0) {
-          items = items.map((item, i) => i === index ? result.data : item)
-          subscribers.notify([[index]])
-        } else {
-          items = [...items, result.data]
-          subscribers.notify([[items.length - 1]])
-        }
-        network.setStatus({ isRevalidating: false, error: null, lastUpdated: Date.now() })
-        config.onGetOne?.(result.data, result.meta)
-        return result.data
-      } catch (error) {
-        network.setStatus({ isRevalidating: false, error: error as Error })
-        handleError(error as Error, 'getOne', cleanParams, null)
-        throw error
-      }
+      const promise = (async () => {
+        try {
+          const result = await apiFetch<T>({ method: 'GET', endpoint, params: cleanParams, dataKey: config.dataKey })
+          setCache(cacheKey, result.data)
+          const index = findIndex(params.id)
+          if (index >= 0) {
+            items = items.map((item, i) => i === index ? result.data : item)
+            subscribers.notify([[index]])
+          } else {
+            items = [...items, result.data]
+            subscribers.notify([[items.length - 1]])
+          }
+          network.setStatus({ isRevalidating: false, error: null, lastUpdated: Date.now() })
+          config.onGetOne?.(result.data, result.meta)
+          return result.data
+        } catch (error) {
+          network.setStatus({ isRevalidating: false, error: error as Error })
+          handleError(error as Error, 'getOne', cleanParams, null)
+          throw error
+        } finally { inFlightGetOne.delete(cacheKey) }
+      })()
+      inFlightGetOne.set(cacheKey, promise)
+      return promise
     },
 
     async create(data: Omit<T, 'id'>): Promise<T> {
@@ -131,6 +147,7 @@ export function createArrayStore<T extends { id: string }>(config: ArrayStoreCon
       try {
         const result = await apiFetch<T>({ method: 'POST', endpoint, body: data, dataKey: config.dataKey, requestKey: config.requestKey })
         items = [...items, result.data]
+        clearCachePrefix(config.endpoints?.get ?? '')
         network.setStatus({ isRevalidating: false, error: null, lastUpdated: Date.now() })
         subscribers.notify([[items.length - 1]])
         config.onCreate?.(result.data, result.meta)
@@ -156,6 +173,7 @@ export function createArrayStore<T extends { id: string }>(config: ArrayStoreCon
       try {
         const result = await apiFetch<T>({ method: 'PUT', endpoint, params: { id: data.id }, body: data, dataKey: config.dataKey, requestKey: config.requestKey })
         items = items.map((item, i) => i === index ? result.data : item)
+        clearCachePrefix(config.endpoints?.get ?? '')
         network.setStatus({ lastUpdated: Date.now(), error: null })
         subscribers.notify([[index]])
         config.onUpdate?.(result.data, result.meta)
@@ -178,20 +196,20 @@ export function createArrayStore<T extends { id: string }>(config: ArrayStoreCon
       const previousItems = [...items]
       const previousItem = items[index]
       items = items.map((item, i) => i === index ? { ...item, ...data } : item)
-      const idx = String(index)
-      const changedPaths = Object.keys(data).filter(k => k !== 'id').map(k => [idx, k])
-      subscribers.notify(changedPaths.length ? changedPaths : [[idx]])
+      const changedPaths = Object.keys(data).filter(k => k !== 'id').map(k => [index, k])
+      subscribers.notify(changedPaths.length ? changedPaths : [[index]])
 
       try {
         const result = await apiFetch<T>({ method: 'PATCH', endpoint, params: { id: data.id }, body: data, dataKey: config.dataKey, requestKey: config.requestKey })
         items = items.map((item, i) => i === index ? result.data : item)
+        clearCachePrefix(config.endpoints?.get ?? '')
         network.setStatus({ lastUpdated: Date.now(), error: null })
-        subscribers.notify(changedPaths.length ? changedPaths : [[idx]])
+        subscribers.notify(changedPaths.length ? changedPaths : [[index]])
         config.onPatch?.(result.data, result.meta)
         return result.data
       } catch (error) {
         items = previousItems
-        subscribers.notify(changedPaths.length ? changedPaths : [[idx]])
+        subscribers.notify(changedPaths.length ? changedPaths : [[index]])
         handleError(error as Error, 'patch', { id: data.id }, previousItem)
         throw error
       }
@@ -211,6 +229,7 @@ export function createArrayStore<T extends { id: string }>(config: ArrayStoreCon
 
       try {
         const result = await apiFetch<void>({ method: 'DELETE', endpoint, params })
+        clearCachePrefix(config.endpoints?.get ?? '')
         network.setStatus({ lastUpdated: Date.now(), error: null })
         config.onDelete?.(params.id, result.meta)
       } catch (error) {

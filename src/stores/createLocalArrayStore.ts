@@ -6,7 +6,7 @@ import { loadFromStorage, saveToStorage } from '../sync/localStorage'
 export function createLocalArrayStore<T extends { id: string }>(
   key: string,
   config: LocalArrayStoreConfig<T> = {}
-): LocalArrayStore<T> & { dispose: () => void } {
+): LocalArrayStore<T> {
   let items: T[] = loadFromStorage<T[]>(key) ?? []
   const subscribers = createSubscriberManager()
   const findIndex = (id: string) => items.findIndex(item => item.id === id)
@@ -14,8 +14,11 @@ export function createLocalArrayStore<T extends { id: string }>(
   const onStorage = (event: StorageEvent) => {
     if (event.key === key && event.newValue !== null) {
       try {
-        items = JSON.parse(event.newValue)
-        subscribers.notify([[]])
+        const parsed = JSON.parse(event.newValue)
+        if (Array.isArray(parsed)) {
+          items = parsed
+          subscribers.notify([[]])
+        }
       } catch { /* ignore */ }
     }
   }
@@ -75,5 +78,5 @@ export function createLocalArrayStore<T extends { id: string }>(
   const proxy = wrapStoreWithProxy<Record<string | number, unknown>>(storeInternals)
   const descriptors = Object.getOwnPropertyDescriptors(storeImpl)
   Object.defineProperties(proxy, descriptors)
-  return proxy as unknown as LocalArrayStore<T> & { dispose: () => void }
+  return proxy as unknown as LocalArrayStore<T>
 }

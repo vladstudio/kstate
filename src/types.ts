@@ -117,7 +117,6 @@ export interface ArrayStore<T extends { id: string }> extends BaseStore {
   update: (data: T) => Promise<T>
   patch: (data: Partial<T> & { id: string }) => Promise<T>
   delete: (params: { id: string }) => Promise<void>
-  localPatch: (data: Partial<T> & { id: string }) => void
 }
 
 export interface LocalStore<T> {
@@ -126,6 +125,7 @@ export interface LocalStore<T> {
   set: (data: T) => void
   patch: (data: Partial<T>) => void
   clear: () => void
+  dispose: () => void
 }
 
 export interface LocalArrayStore<T extends { id: string }> {
@@ -136,10 +136,12 @@ export interface LocalArrayStore<T extends { id: string }> {
   patch: (data: Partial<T> & { id: string }) => void
   delete: (params: { id: string }) => void
   clear: () => void
+  dispose: () => void
 }
 
 export interface ComputedStore<T> {
   readonly value: T
+  dispose: () => void
 }
 
 export interface SubscriberManager {

@@ -1,16 +1,25 @@
 type CacheEntry<T> = { data: T; timestamp: number }
 const cache = new Map<string, CacheEntry<unknown>>()
+const MAX_SIZE = 100
 
-export function getCached<T>(key: string, ttl: number): T | null {
+export function getCached<T>(key: string, ttl: number): { data: T; stale: boolean } | null {
   const entry = cache.get(key)
-  if (entry && Date.now() - entry.timestamp < ttl) return entry.data as T
-  return null
+  if (!entry) return null
+  const age = Date.now() - entry.timestamp
+  if (age >= ttl) return null
+  return { data: entry.data as T, stale: age > ttl / 2 }
 }
 
 export function setCache<T>(key: string, data: T): void {
+  if (cache.size >= MAX_SIZE) cache.delete(cache.keys().next().value!)
   cache.set(key, { data, timestamp: Date.now() })
 }
 
 export function clearCache(key: string): void {
   cache.delete(key)
+}
+
+export function clearCachePrefix(prefix: string): void {
+  if (!prefix) return
+  for (const key of cache.keys()) if (key.startsWith(prefix)) cache.delete(key)
 }

@@ -7,15 +7,18 @@ export function createLocalStore<T>(
   key: string,
   defaultValue: T,
   config: LocalStoreConfig<T> = {}
-): LocalStore<T> & { dispose: () => void } {
+): LocalStore<T> {
   let data: T = loadFromStorage<T>(key) ?? defaultValue
   const subscribers = createSubscriberManager()
 
   const onStorage = (event: StorageEvent) => {
     if (event.key === key && event.newValue !== null) {
       try {
-        data = JSON.parse(event.newValue)
-        subscribers.notify([[]])
+        const parsed = JSON.parse(event.newValue)
+        if (parsed !== null && typeof parsed === 'object') {
+          data = parsed
+          subscribers.notify([[]])
+        }
       } catch { /* ignore */ }
     }
   }
@@ -56,5 +59,5 @@ export function createLocalStore<T>(
   const proxy = wrapStoreWithProxy<Record<string, unknown>>(storeInternals)
   const descriptors = Object.getOwnPropertyDescriptors(storeImpl)
   Object.defineProperties(proxy, descriptors)
-  return proxy as unknown as LocalStore<T> & { dispose: () => void }
+  return proxy as unknown as LocalStore<T>
 }
