@@ -1,18 +1,20 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useStore, useStoreStatus } from 'kstate'
 import { users, User } from '../stores'
 
 export function FineGrainedDemo() {
-  const items = useStore<User[]>(users)
   const { isLoading } = useStoreStatus(users)
+  const [ready, setReady] = useState(false)
 
   useEffect(() => {
     if (users.value.length === 0) {
-      users.get()
+      users.get().then(() => setReady(true))
+    } else {
+      setReady(true)
     }
   }, [])
 
-  if (isLoading && items.length === 0) {
+  if (isLoading || !ready) {
     return <div className="loading">Loading users...</div>
   }
 
@@ -25,18 +27,18 @@ export function FineGrainedDemo() {
       <div className="demo-info">
         <p>
           <strong>Features demonstrated:</strong> Path-based subscriptions -
-          each component only re-renders when its specific subscribed value
+          each component only re-renders when its specific subscribed data
           changes
         </p>
         <p className="note">
-          Watch the render counters - clicking "Update Name" only re-renders
-          that specific UserName component, not UserEmail or other rows!
+          Watch the render counters - clicking "Update" only re-renders
+          components subscribed to that specific row!
         </p>
       </div>
 
       <div className="fine-grained-grid">
-        {items.slice(0, 5).map((user, index) => (
-          <UserRow key={user.id} user={user} index={index} />
+        {[0, 1, 2, 3, 4].map((index) => (
+          <UserRow key={index} index={index} />
         ))}
       </div>
 
@@ -57,7 +59,7 @@ users.patch({ id: '1', name: 'New Name' })
   )
 }
 
-function UserRow({ user, index }: { user: User; index: number }) {
+function UserRow({ index }: { index: number }) {
   const renderCount = useRef(0)
   renderCount.current++
 
@@ -68,64 +70,66 @@ function UserRow({ user, index }: { user: User; index: number }) {
         <span className="render-count">Row renders: {renderCount.current}</span>
       </div>
       <div className="row-fields">
-        <UserName user={user} />
-        <UserEmail user={user} />
-        <UserCity user={user} />
+        <UserName index={index} />
+        <UserEmail index={index} />
+        <UserCity index={index} />
       </div>
     </div>
   )
 }
 
-function UserName({ user }: { user: User }) {
+function UserName({ index }: { index: number }) {
+  const userProxy = (users as unknown as Record<number, User>)[index]
+  const name = useStore<string>((userProxy as unknown as Record<string, string>).name)
+  const id = useStore<string>((userProxy as unknown as Record<string, string>).id)
   const renderCount = useRef(0)
   renderCount.current++
 
   const handleUpdate = () => {
-    const suffix = Math.random().toString(36).slice(2, 5)
-    users.patch({ id: user.id, name: `Updated ${suffix}` })
+    users.patch({ id, name: `Updated ${Math.random().toString(36).slice(2, 5)}` })
   }
 
   return (
     <div className="field-cell">
       <label>Name</label>
-      <span className="field-value">{user.name}</span>
+      <span className="field-value">{name}</span>
       <span className="render-count">renders: {renderCount.current}</span>
-      <button onClick={handleUpdate} className="small">
-        Update
-      </button>
+      <button onClick={handleUpdate} className="small">Update</button>
     </div>
   )
 }
 
-function UserEmail({ user }: { user: User }) {
+function UserEmail({ index }: { index: number }) {
+  const userProxy = (users as unknown as Record<number, User>)[index]
+  const email = useStore<string>((userProxy as unknown as Record<string, string>).email)
+  const id = useStore<string>((userProxy as unknown as Record<string, string>).id)
   const renderCount = useRef(0)
   renderCount.current++
 
   const handleUpdate = () => {
-    const suffix = Math.random().toString(36).slice(2, 5)
-    users.patch({ id: user.id, email: `${suffix}@example.com` })
+    users.patch({ id, email: `${Math.random().toString(36).slice(2, 5)}@example.com` })
   }
 
   return (
     <div className="field-cell">
       <label>Email</label>
-      <span className="field-value">{user.email}</span>
+      <span className="field-value">{email}</span>
       <span className="render-count">renders: {renderCount.current}</span>
-      <button onClick={handleUpdate} className="small">
-        Update
-      </button>
+      <button onClick={handleUpdate} className="small">Update</button>
     </div>
   )
 }
 
-function UserCity({ user }: { user: User }) {
+function UserCity({ index }: { index: number }) {
+  const userProxy = (users as unknown as Record<number, User>)[index]
+  const city = useStore<string>((userProxy as unknown as Record<string, Record<string, string>>).address.city)
   const renderCount = useRef(0)
   renderCount.current++
 
   return (
     <div className="field-cell">
       <label>City</label>
-      <span className="field-value">{user.address.city}</span>
+      <span className="field-value">{city}</span>
       <span className="render-count">renders: {renderCount.current}</span>
     </div>
   )

@@ -24,9 +24,9 @@ export const users = createArrayStore<User>({
   endpoints: {
     get: '/users',
     getOne: '/users/:id',
+    patch: '/users/:id',
   },
   ttl: 60000,
-  reloadOnFocus: true,
 })
 
 export const userCount = computed(users, (items) => items.length)

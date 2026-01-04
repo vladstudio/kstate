@@ -16,14 +16,13 @@ export function createSubscriberManager(onFirstSubscribe?: () => void): Subscrib
       hadSubscribers = true
       onFirstSubscribe()
     }
-    return () => subscriptions.delete(subscription)
+    return () => { subscriptions.delete(subscription) }
   }
 
   function notify(changedPaths: Path[]): void {
+    if (subscriptions.size === 0) return
     for (const subscription of subscriptions) {
-      if (shouldNotify(subscription.path, changedPaths)) {
-        subscription.listener()
-      }
+      if (shouldNotify(subscription.path, changedPaths)) subscription.listener()
     }
   }
 

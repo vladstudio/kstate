@@ -18,26 +18,26 @@ export function computed<R>(
   sourceOrSources: SourceStore | SourceStore[],
   selector: (value: unknown) => R
 ): ComputedStore<R> & { dispose: () => void } {
-  // Check if it's a single store (KState proxy) or array of stores
-  // Array.isArray would be true for array store proxies, so check for proxy first
   const isSingleSource = isKStateProxy(sourceOrSources) || !Array.isArray(sourceOrSources)
   const sources: SourceStore[] = isSingleSource ? [sourceOrSources as SourceStore] : sourceOrSources as SourceStore[]
-  const subscribers = createSubscriberManager()
   const unsubscribes: (() => void)[] = []
-
-  // Cache the computed value to prevent infinite loops with useSyncExternalStore
   let cachedValue: R | undefined
   let cacheValid = false
 
-  for (const source of sources) {
-    if (isKStateProxy(source)) {
-      const unsub = getProxySubscribe(source)?.([], () => {
-        cacheValid = false // Invalidate cache when source changes
-        subscribers.notify([[]])
-      })
-      if (unsub) unsubscribes.push(unsub)
+  // Lazy subscription: only subscribe to sources when computed has subscribers
+  const subscribeToSources = () => {
+    if (unsubscribes.length > 0) return
+    for (const source of sources) {
+      if (isKStateProxy(source)) {
+        const unsub = getProxySubscribe(source)?.([], () => {
+          cacheValid = false
+          subscribers.notify([[]])
+        })
+        if (unsub) unsubscribes.push(unsub)
+      }
     }
   }
+  const subscribers = createSubscriberManager(subscribeToSources)
 
   const getValue = (): R => {
     if (cacheValid) return cachedValue!

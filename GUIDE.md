@@ -629,7 +629,8 @@ useStore(users[0])           // Path: [0]          - First user changes
 useStore(users[0].name)      // Path: [0, 'name']  - First user's name only
 useStore(users[0].email)     // Path: [0, 'email'] - First user's email only
 
-// When users[0].name changes:
+// When you call: users.patch({ id: '1', name: 'New Name' })
+// KState notifies path [0, 'name'], so:
 // ✓ useStore(users)         - re-renders (ancestor)
 // ✓ useStore(users[0])      - re-renders (ancestor)
 // ✓ useStore(users[0].name) - re-renders (exact match)

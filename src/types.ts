@@ -117,6 +117,7 @@ export interface ArrayStore<T extends { id: string }> extends BaseStore {
   update: (data: T) => Promise<T>
   patch: (data: Partial<T> & { id: string }) => Promise<T>
   delete: (params: { id: string }) => Promise<void>
+  localPatch: (data: Partial<T> & { id: string }) => void
 }
 
 export interface LocalStore<T> {

@@ -178,18 +178,20 @@ export function createArrayStore<T extends { id: string }>(config: ArrayStoreCon
       const previousItems = [...items]
       const previousItem = items[index]
       items = items.map((item, i) => i === index ? { ...item, ...data } : item)
-      subscribers.notify([[index]])
+      const idx = String(index)
+      const changedPaths = Object.keys(data).filter(k => k !== 'id').map(k => [idx, k])
+      subscribers.notify(changedPaths.length ? changedPaths : [[idx]])
 
       try {
         const result = await apiFetch<T>({ method: 'PATCH', endpoint, params: { id: data.id }, body: data, dataKey: config.dataKey, requestKey: config.requestKey })
         items = items.map((item, i) => i === index ? result.data : item)
         network.setStatus({ lastUpdated: Date.now(), error: null })
-        subscribers.notify([[index]])
+        subscribers.notify(changedPaths.length ? changedPaths : [[idx]])
         config.onPatch?.(result.data, result.meta)
         return result.data
       } catch (error) {
         items = previousItems
-        subscribers.notify([[index]])
+        subscribers.notify(changedPaths.length ? changedPaths : [[idx]])
         handleError(error as Error, 'patch', { id: data.id }, previousItem)
         throw error
       }

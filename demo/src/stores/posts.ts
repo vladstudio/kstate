@@ -17,7 +17,7 @@ export const posts = createArrayStore<Post>({
     delete: '/posts/:id',
   },
   ttl: 30000,
-  reloadOnFocus: true,
+  
   onError: (error, meta) => {
     console.error(`[Posts] ${meta.operation} failed:`, error.message)
   },
