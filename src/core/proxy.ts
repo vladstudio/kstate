@@ -94,7 +94,8 @@ function createReactiveProxy(context: ProxyContext<unknown>): unknown {
       }
 
       const value = (data as Record<string | symbol, unknown>)[prop]
-      const newPath = [...context.path, prop as string | number]
+      const pathKey = typeof prop === 'string' && /^\d+$/.test(prop) ? Number(prop) : prop
+      const newPath = [...context.path, pathKey as string | number]
       const newGetData = () => {
         const d = context.getData()
         if (d === null || d === undefined) return undefined

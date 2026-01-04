@@ -27,8 +27,11 @@ export function createNetworkManager(config: NetworkConfig): NetworkManager {
   }
 
   function setStatus(updates: Partial<StoreStatus>): void {
+    const prev = status
     status = { ...status, ...updates }
-    statusSubscribers.forEach(l => l())
+    if (prev.isLoading !== status.isLoading || prev.isRevalidating !== status.isRevalidating ||
+        prev.isOffline !== status.isOffline || prev.error !== status.error)
+      statusSubscribers.forEach(l => l())
   }
 
   if (typeof window !== 'undefined') {

@@ -50,7 +50,8 @@ export function createLocalArrayStore<T extends { id: string }>(
       const updated = { ...items[index], ...data }
       items = items.map((i, idx) => idx === index ? updated : i)
       saveToStorage(key, items)
-      subscribers.notify([[index]])
+      const changedPaths = Object.keys(data).filter(k => k !== 'id').map(k => [index, k])
+      subscribers.notify(changedPaths.length ? changedPaths : [[index]])
       config.onPatch?.(updated)
     },
     delete(params: { id: string }): void {

@@ -39,7 +39,8 @@ export function createLocalStore<T>(
     patch(partial: Partial<T>): void {
       data = { ...data, ...partial }
       saveToStorage(key, data)
-      subscribers.notify([[]])
+      const changedPaths = Object.keys(partial).map(k => [k])
+      subscribers.notify(changedPaths.length ? changedPaths : [[]])
       config.onPatch?.(data)
     },
     clear(): void {
