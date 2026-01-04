@@ -91,6 +91,9 @@ bun run dev
 
 # Type check without emitting
 bun run typecheck
+
+# Run tests
+bun test
 ```
 
 ### Project Structure
