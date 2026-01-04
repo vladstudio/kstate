@@ -9,7 +9,7 @@ Minimal, type-safe state management for React SPAs with fine-grained reactivity,
 - **Optimistic updates** — UI updates instantly, auto-rollback on failure
 - **Stale-while-revalidate** — Show cached data while fetching fresh data
 - **TypeScript-native** — Full type inference, zero manual annotations
-- **Multiple sync adapters** — REST API and localStorage out of the box
+- **Multiple sync adapters** — REST API, localStorage, and SSE out of the box
 
 ## Installation
 
@@ -114,6 +114,7 @@ src/
 │   ├── createApiArrayStore.ts # Array API store
 │   ├── createLocalStore.ts    # Single localStorage store
 │   ├── createLocalArrayStore.ts # Array localStorage store
+│   ├── createSseArrayStore.ts # SSE real-time array store
 │   └── computed.ts            # Derived stores
 └── sync/
     └── api.ts            # Fetch wrapper

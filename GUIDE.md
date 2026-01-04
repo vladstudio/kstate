@@ -12,17 +12,18 @@ Complete usage guide for React/TypeScript developers.
 4. [localStorage Stores](#localstorage-stores)
    - [Local Store](#local-store-createlocalstore)
    - [Local Array Store](#local-array-store-createlocalarraystore)
-5. [Computed Stores](#computed-stores)
-6. [React Hooks](#react-hooks)
+5. [SSE Stores](#sse-stores)
+6. [Computed Stores](#computed-stores)
+7. [React Hooks](#react-hooks)
    - [useStore](#usestore)
    - [useStoreStatus](#usestorestatus)
-7. [Fine-Grained Reactivity](#fine-grained-reactivity)
-8. [Optimistic Updates](#optimistic-updates)
-9. [Caching & Revalidation](#caching--revalidation)
-10. [Pagination](#pagination)
-11. [Error Handling](#error-handling)
-12. [TypeScript](#typescript)
-13. [Complete Examples](#complete-examples)
+8. [Fine-Grained Reactivity](#fine-grained-reactivity)
+9. [Optimistic Updates](#optimistic-updates)
+10. [Caching & Revalidation](#caching--revalidation)
+11. [Pagination](#pagination)
+12. [Error Handling](#error-handling)
+13. [TypeScript](#typescript)
+14. [Complete Examples](#complete-examples)
 
 ---
 
@@ -482,6 +483,157 @@ All localStorage stores automatically sync across browser tabs:
 settings.patch({ theme: 'dark' })
 
 // Tab 2: Automatically receives the update and re-renders
+```
+
+---
+
+## SSE Stores
+
+For real-time data via Server-Sent Events with auto-reconnect, heartbeat monitoring, and visibility handling.
+
+### `createSseArrayStore`
+
+```tsx
+import { createSseArrayStore } from 'kstate'
+
+interface Job {
+  id: string
+  status: string
+  url: string
+}
+
+export const jobs = createSseArrayStore<Job>({
+  url: 'https://api.example.com/sse/jobs',
+  mode: 'replace',           // 'replace' | 'append' | 'upsert'
+  eventName: 'jobs-update',  // SSE event name (default: 'message')
+  dataKey: 'items',          // Extract array from { items: [...] }
+  persistKey: 'jobs-cache',  // Cache in localStorage
+
+  initialFetch: {            // Fetch data before SSE connects
+    endpoint: '/jobs',
+    dataKey: 'items',
+  },
+})
+```
+
+#### Connection Lifecycle
+
+```tsx
+// Connect (call once, e.g., in useEffect)
+jobs.connect()
+
+// Disconnect
+jobs.disconnect()
+
+// Clear data
+jobs.clear()
+
+// Cleanup (same as disconnect)
+jobs.dispose()
+```
+
+#### Modes
+
+| Mode | Behavior |
+|------|----------|
+| `replace` | Each message replaces the entire array |
+| `append` | Each message adds new items (with deduplication) |
+| `upsert` | Each message updates existing or adds new items by `id` |
+
+#### Optimistic Local Mutations
+
+SSE stores support optimistic updates for immediate UI feedback:
+
+```tsx
+// Update item locally (SSE will sync truth from server)
+jobs.update({ id: '123', status: 'complete', url: '...' })
+
+// Partial update
+jobs.patch({ id: '123', status: 'complete' })
+
+// Remove item locally
+jobs.remove('123')
+```
+
+#### Connection Status
+
+```tsx
+import { useStoreStatus } from 'kstate'
+
+function JobList() {
+  const items = useStore(jobs)
+  const { connectionStatus, lastEventTime, error } = useStoreStatus(jobs)
+
+  return (
+    <div>
+      {connectionStatus === 'connecting' && <Spinner />}
+      {connectionStatus === 'error' && <Banner>{error?.message}</Banner>}
+      {items.map(job => <JobCard key={job.id} job={job} />)}
+    </div>
+  )
+}
+```
+
+#### Status Properties
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `connectionStatus` | `'disconnected' \| 'connecting' \| 'connected' \| 'error'` | SSE connection state |
+| `lastEventTime` | `number \| null` | Timestamp of last received event |
+| `isOffline` | `boolean` | `navigator.onLine === false` |
+| `error` | `Error \| null` | Last error |
+
+#### Configuration Options
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `url` | `string \| (params) => string` | - | SSE endpoint URL |
+| `mode` | `'replace' \| 'append' \| 'upsert'` | - | How to handle incoming data |
+| `eventName` | `string` | `'message'` | SSE event name to listen for |
+| `dataKey` | `string` | - | Extract array from response object |
+| `withCredentials` | `boolean` | `true` | Send cookies with request |
+| `persistKey` | `string` | - | localStorage key for caching |
+| `dedupe` | `(item) => string` | `item.id` | Deduplication key (append mode) |
+| `maxItems` | `number` | - | Limit array size (append mode) |
+| `maxRetries` | `number` | `10` | Max reconnection attempts |
+| `retryDelay` | `number \| (attempt) => number` | exponential | Delay between retries |
+| `heartbeatTimeout` | `number` | `45000` | Reconnect if no events (0 = disabled) |
+| `reconnectOnFocus` | `boolean` | `true` | Reconnect when tab gains focus |
+| `reconnectOnOnline` | `boolean` | `true` | Reconnect when back online |
+| `pauseOnHidden` | `boolean` | `true` | Disconnect when tab hidden |
+| `initialFetch` | `{ endpoint, dataKey }` | - | REST fetch before SSE connects |
+
+#### Dynamic URL Parameters
+
+```tsx
+interface Params {
+  sessionId: string
+  token: string
+}
+
+const events = createSseArrayStore<Event, Params>({
+  url: (params) => `https://api.example.com/sse?token=${params.token}&id=${params.sessionId}`,
+  mode: 'append',
+  dedupe: (e) => e.id,
+  maxItems: 1000,
+})
+
+// Connect with params
+events.connect({ sessionId: '123', token: 'abc' })
+```
+
+#### Event Handlers
+
+```tsx
+const jobs = createSseArrayStore<Job>({
+  url: '/sse/jobs',
+  mode: 'replace',
+
+  onConnect: () => console.log('Connected'),
+  onDisconnect: () => console.log('Disconnected'),
+  onMessage: (items, event) => console.log('Received', items.length, 'items'),
+  onError: (error) => console.error('SSE error:', error),
+})
 ```
 
 ---

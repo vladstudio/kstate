@@ -6,6 +6,7 @@ export { createApiStore } from './stores/createApiStore'
 export { createApiArrayStore } from './stores/createApiArrayStore'
 export { createLocalStore } from './stores/createLocalStore'
 export { createLocalArrayStore } from './stores/createLocalArrayStore'
+export { createSseArrayStore } from './stores/createSseArrayStore'
 export { computed } from './stores/computed'
 
 // React hooks
@@ -18,12 +19,16 @@ export type {
   ArrayStoreConfig,
   LocalStoreConfig,
   LocalArrayStoreConfig,
+  SseArrayStoreConfig,
   Store,
   ArrayStore,
   LocalStore,
   LocalArrayStore,
+  SseArrayStore,
   ComputedStore,
   StoreStatus,
+  SseStatus,
+  SseConnectionStatus,
   ResponseMeta,
   ErrorMeta,
   Operation,

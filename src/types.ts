@@ -144,6 +144,51 @@ export interface ComputedStore<T> {
   dispose: () => void
 }
 
+// SSE Stores
+export type SseConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'error'
+
+export interface SseStatus extends StoreStatus {
+  connectionStatus: SseConnectionStatus
+  lastEventTime: number | null
+}
+
+export interface SseArrayStoreConfig<T, P = Record<string, unknown>> {
+  url: string | ((params: P) => string)
+  mode: 'replace' | 'append' | 'upsert'
+  eventName?: string
+  dataKey?: string
+  withCredentials?: boolean
+  transform?: (raw: unknown) => T[]
+  dedupe?: (item: T) => string
+  maxItems?: number
+  persistKey?: string
+  maxRetries?: number
+  retryDelay?: number | ((attempt: number) => number)
+  heartbeatTimeout?: number
+  reconnectOnFocus?: boolean
+  reconnectOnOnline?: boolean
+  pauseOnHidden?: boolean
+  initialFetch?: { endpoint: string; dataKey?: string }
+  onConnect?: () => void
+  onMessage?: (data: T[], event: MessageEvent) => void
+  onError?: (error: Error) => void
+  onDisconnect?: () => void
+}
+
+export interface SseArrayStore<T, P = Record<string, unknown>> {
+  readonly value: T[]
+  readonly meta: Record<string, unknown>
+  readonly status: SseStatus
+  subscribeToStatus: (listener: Listener) => () => void
+  connect: (params?: P) => void
+  disconnect: () => void
+  update: (item: T) => void
+  patch: (data: Partial<T> & { id: string }) => void
+  remove: (id: string) => void
+  clear: () => void
+  dispose: () => void
+}
+
 export interface SubscriberManager {
   subscribe: (path: Path, listener: Listener) => () => void
   notify: (changedPaths: Path[]) => void
