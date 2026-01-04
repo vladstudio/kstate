@@ -1,4 +1,4 @@
-import { createArrayStore, computed } from 'kstate'
+import { createApiArrayStore, computed } from 'kstate'
 
 export interface Todo {
   id: string
@@ -7,7 +7,7 @@ export interface Todo {
   completed: boolean
 }
 
-export const todos = createArrayStore<Todo>({
+export const todos = createApiArrayStore<Todo>({
   endpoints: {
     get: '/todos',
     patch: '/todos/:id',

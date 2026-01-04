@@ -20,7 +20,7 @@ bun add kstate
 ## Quick Start
 
 ```tsx
-import { configureKState, createArrayStore, useStore } from 'kstate'
+import { configureKState, createApiArrayStore, useStore } from 'kstate'
 
 // Configure once at app startup
 configureKState({
@@ -37,7 +37,7 @@ interface User {
   email: string
 }
 
-const users = createArrayStore<User>({
+const users = createApiArrayStore<User>({
   endpoints: {
     get: '/users',
     create: '/users',
@@ -110,8 +110,8 @@ src/
 │   ├── useStore.ts       # Main reactive hook
 │   └── useStoreStatus.ts # Network status hook
 ├── stores/
-│   ├── createStore.ts         # Single value API store
-│   ├── createArrayStore.ts    # Array API store
+│   ├── createApiStore.ts      # Single value API store
+│   ├── createApiArrayStore.ts # Array API store
 │   ├── createLocalStore.ts    # Single localStorage store
 │   ├── createLocalArrayStore.ts # Array localStorage store
 │   └── computed.ts            # Derived stores

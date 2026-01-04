@@ -2,8 +2,8 @@
 export { configureKState } from './config'
 
 // Store creators
-export { createStore } from './stores/createStore'
-export { createArrayStore } from './stores/createArrayStore'
+export { createApiStore } from './stores/createApiStore'
+export { createApiArrayStore } from './stores/createApiArrayStore'
 export { createLocalStore } from './stores/createLocalStore'
 export { createLocalArrayStore } from './stores/createLocalArrayStore'
 export { computed } from './stores/computed'

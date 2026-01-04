@@ -6,7 +6,7 @@ import { apiFetch } from '../sync/api'
 import { getConfig } from '../config'
 import { getCached, setCache, clearCache, clearCachePrefix } from '../core/cache'
 
-export function createArrayStore<T extends { id: string }>(config: ArrayStoreConfig<T> = {}): ArrayStore<T> {
+export function createApiArrayStore<T extends { id: string }>(config: ArrayStoreConfig<T> = {}): ArrayStore<T> {
   let items: T[] = []
   let meta: Record<string, unknown> = {}
   let lastFetchParams: Record<string, string | number> = {}

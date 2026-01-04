@@ -28,8 +28,8 @@ Exports from kstate
 export { configureKState } from './config'
 
 // Store creators
-export { createStore } from './stores/createStore'
-export { createArrayStore } from './stores/createArrayStore'
+export { createApiStore } from './stores/createApiStore'
+export { createApiArrayStore } from './stores/createApiArrayStore'
 export { createLocalStore } from './stores/createLocalStore'
 export { createLocalArrayStore } from './stores/createLocalArrayStore'
 export { computed } from './stores/computed'
@@ -715,11 +715,11 @@ export function useStoreStatus(store: StoreWithStatus): StoreStatus {
 ---
 10. Single Store Implementation
 
-createStore<T>
+createApiStore<T>
 
-// src/stores/createStore.ts
+// src/stores/createApiStore.ts
 
-export function createStore<T extends { id: string }>(
+export function createApiStore<T extends { id: string }>(
   config: StoreConfig<T> = {}
 ): Store<T> {
   // Internal state
@@ -1018,11 +1018,11 @@ export function createStore<T extends { id: string }>(
 ---
 11. Array Store Implementation
 
-createArrayStore<T>
+createApiArrayStore<T>
 
-// src/stores/createArrayStore.ts
+// src/stores/createApiArrayStore.ts
 
-export function createArrayStore<T extends { id: string }>(
+export function createApiArrayStore<T extends { id: string }>(
   config: ArrayStoreConfig<T> = {}
 ): ArrayStore<T> {
   // Internal state
@@ -1655,7 +1655,7 @@ function UserCount() {
 14. Complete Usage Example
 
 // src/stores/users.ts
-import { createArrayStore, computed } from 'kstate'
+import { createApiArrayStore, computed } from 'kstate'
 
 interface User {
   id: string
@@ -1665,7 +1665,7 @@ interface User {
   role: 'admin' | 'user'
 }
 
-export const users = createArrayStore<User>({
+export const users = createApiArrayStore<User>({
   endpoints: {
     get: '/users',
     getOne: '/users/:id',
@@ -1824,8 +1824,8 @@ src/
 ├── config.ts                   # Global configuration
 ├── types.ts                    # All TypeScript types
 ├── stores/
-│   ├── createStore.ts          # Single value API store
-│   ├── createArrayStore.ts     # Array API store
+│   ├── createApiStore.ts          # Single value API store
+│   ├── createApiArrayStore.ts     # Array API store
 │   ├── createLocalStore.ts     # Single value localStorage store
 │   ├── createLocalArrayStore.ts # Array localStorage store
 │   └── computed.ts             # Computed/derived stores

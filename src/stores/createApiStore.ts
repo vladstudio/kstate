@@ -6,7 +6,7 @@ import { apiFetch } from '../sync/api'
 import { getConfig } from '../config'
 import { getCached, setCache, clearCache, clearCachePrefix } from '../core/cache'
 
-export function createStore<T extends { id: string }>(config: StoreConfig<T> = {}): Store<T> {
+export function createApiStore<T extends { id: string }>(config: StoreConfig<T> = {}): Store<T> {
   let data: T | null = null
   let lastFetchParams: Record<string, string | number> = {}
   let inFlightKey: string | null = null

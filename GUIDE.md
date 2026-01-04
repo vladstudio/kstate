@@ -93,12 +93,12 @@ configureKState({
 
 ## API Stores
 
-### Single Store (`createStore`)
+### Single Store (`createApiStore`)
 
 For managing a single JSON object synced with an API.
 
 ```tsx
-import { createStore } from 'kstate'
+import { createApiStore } from 'kstate'
 
 interface UserProfile {
   id: string
@@ -107,7 +107,7 @@ interface UserProfile {
   avatar: string
 }
 
-export const userProfile = createStore<UserProfile>({
+export const userProfile = createApiStore<UserProfile>({
   endpoints: {
     get: '/users/:id',
     update: '/users/:id',
@@ -170,7 +170,7 @@ userProfile.dispose()
 #### Event Handlers
 
 ```tsx
-const userProfile = createStore<UserProfile>({
+const userProfile = createApiStore<UserProfile>({
   endpoints: { ... },
 
   onGet: (data, meta) => {
@@ -199,12 +199,12 @@ const userProfile = createStore<UserProfile>({
 
 ---
 
-### Array Store (`createArrayStore`)
+### Array Store (`createApiArrayStore`)
 
 For managing arrays of JSON objects synced with an API.
 
 ```tsx
-import { createArrayStore } from 'kstate'
+import { createApiArrayStore } from 'kstate'
 
 interface User {
   id: string
@@ -214,7 +214,7 @@ interface User {
   isActive: boolean
 }
 
-export const users = createArrayStore<User>({
+export const users = createApiArrayStore<User>({
   endpoints: {
     get: '/users',
     getOne: '/users/:id',
@@ -289,7 +289,7 @@ Same as Single Store, plus:
 #### Event Handlers
 
 ```tsx
-const users = createArrayStore<User>({
+const users = createApiArrayStore<User>({
   endpoints: { ... },
 
   onGet: (items, meta) => {
@@ -513,8 +513,8 @@ const userStats = computed(users, items => ({
 ```tsx
 import { computed } from 'kstate'
 
-const orders = createArrayStore<Order>({ ... })
-const products = createArrayStore<Product>({ ... })
+const orders = createApiArrayStore<Order>({ ... })
+const products = createApiArrayStore<Product>({ ... })
 
 // Combine data from multiple stores
 const dashboard = computed(
@@ -751,7 +751,7 @@ const handleCreate = async () => {
 ### TTL (Time-To-Live)
 
 ```tsx
-const users = createArrayStore<User>({
+const users = createApiArrayStore<User>({
   endpoints: { get: '/users' },
   ttl: 60000  // 1 minute
 })
@@ -794,7 +794,7 @@ await users.get()
 ### Auto-Revalidation
 
 ```tsx
-const users = createArrayStore<User>({
+const users = createApiArrayStore<User>({
   endpoints: { get: '/users' },
 
   // Refetch when component mounts (if data exists)
@@ -818,7 +818,7 @@ const users = createArrayStore<User>({
 KState supports append-based pagination. Subsequent page fetches append to existing data.
 
 ```tsx
-const users = createArrayStore<User>({
+const users = createApiArrayStore<User>({
   endpoints: { get: '/users' },
   dataKey: 'items'  // Response: { items: [...], page: 1, hasMore: true }
 })
@@ -885,7 +885,7 @@ console.log(users.meta)
 ### Per-Store Error Handler
 
 ```tsx
-const users = createArrayStore<User>({
+const users = createApiArrayStore<User>({
   endpoints: { ... },
 
   onError: (error, meta) => {
@@ -971,7 +971,7 @@ interface User {
   age: number
 }
 
-const users = createArrayStore<User>({ ... })
+const users = createApiArrayStore<User>({ ... })
 
 users.value        // User[]
 users.get()        // Promise<User[]>
@@ -1015,7 +1015,7 @@ const total = useStore(stats.total)
 
 ```tsx
 // stores/users.ts
-import { createArrayStore, computed } from 'kstate'
+import { createApiArrayStore, computed } from 'kstate'
 
 interface User {
   id: string
@@ -1025,7 +1025,7 @@ interface User {
   isActive: boolean
 }
 
-export const users = createArrayStore<User>({
+export const users = createApiArrayStore<User>({
   endpoints: {
     get: '/users',
     getOne: '/users/:id',
@@ -1267,7 +1267,7 @@ export function AddToCartButton({ product }: { product: Product }) {
 Use `:paramName` syntax in endpoints:
 
 ```tsx
-const users = createArrayStore<User>({
+const users = createApiArrayStore<User>({
   endpoints: {
     getOne: '/users/:id',
     patch: '/users/:id'
@@ -1294,7 +1294,7 @@ await users.get({ page: 1, pageSize: 20, role: 'admin' })
 ### Combined
 
 ```tsx
-const projects = createArrayStore<Project>({
+const projects = createApiArrayStore<Project>({
   endpoints: {
     get: '/orgs/:orgId/projects'
   }

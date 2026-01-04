@@ -1,4 +1,4 @@
-import { createArrayStore, computed } from 'kstate'
+import { createApiArrayStore, computed } from 'kstate'
 
 export interface User {
   id: string
@@ -20,7 +20,7 @@ export interface User {
   }
 }
 
-export const users = createArrayStore<User>({
+export const users = createApiArrayStore<User>({
   endpoints: {
     get: '/users',
     getOne: '/users/:id',
