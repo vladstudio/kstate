@@ -50,6 +50,7 @@ nav {
 nav button {
   padding: 8px 16px;
   border: none;
+  color: black;
   background: #eee;
   border-radius: 4px;
   cursor: pointer;

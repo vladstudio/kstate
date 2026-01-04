@@ -1,3 +1,4 @@
+export * from './DemoSection'
 export * from './PostsDemo'
 export * from './UsersDemo'
 export * from './TodosDemo'
