@@ -4,16 +4,18 @@ import { createNetworkManager } from '../core/network'
 import { wrapStoreWithProxy } from '../core/proxy'
 import { apiFetch } from '../sync/api'
 import { getConfig } from '../config'
+import { getCached, setCache, clearCache } from '../core/cache'
 
 export function createStore<T extends { id: string }>(config: StoreConfig<T> = {}): Store<T> {
   let data: T | null = null
-  let lastFetchParams: string | null = null
+  let lastFetchParams: Record<string, string | number> = {}
+  let inFlightKey: string | null = null
   let fetchPromise: Promise<T> | null = null
 
   const ttl = config.ttl ?? 60000
   const reloadOnMount = config.reloadOnMount ?? false
 
-  const doReload = () => { if (lastFetchParams !== null) storeImpl.get(JSON.parse(lastFetchParams)) }
+  const doReload = () => storeImpl.get({ ...lastFetchParams, _force: 1 })
 
   const network = createNetworkManager({
     reloadOnFocus: config.reloadOnFocus ?? false,
@@ -43,25 +45,28 @@ export function createStore<T extends { id: string }>(config: StoreConfig<T> = {
       const force = '_force' in params
       const cleanParams = { ...params }
       delete cleanParams._force
-      const paramsKey = JSON.stringify(cleanParams)
+      const cacheKey = `${endpoint}:${JSON.stringify(cleanParams)}`
 
-      const now = Date.now()
-      const isFresh = lastFetchParams === paramsKey && now - network.getStatus().lastUpdated < ttl
+      if (force) clearCache(cacheKey)
 
-      if (isFresh && !force && data !== null) {
-        if (now - network.getStatus().lastUpdated > ttl / 2) fetchInBackground(endpoint, cleanParams)
+      const cached = getCached<T>(cacheKey, ttl)
+      if (cached) {
+        data = cached
+        subscribers.notify([[]])
         return data
       }
 
-      if (fetchPromise && lastFetchParams === paramsKey) return fetchPromise
+      if (fetchPromise && inFlightKey === cacheKey) return fetchPromise
+      lastFetchParams = cleanParams
+      inFlightKey = cacheKey
 
-      lastFetchParams = paramsKey
       network.setStatus({ isLoading: data === null, isRevalidating: data !== null })
 
       fetchPromise = (async () => {
         try {
           const result = await apiFetch<T>({ method: 'GET', endpoint, params: cleanParams, dataKey: config.dataKey })
           data = result.data
+          setCache(cacheKey, data)
           network.setStatus({ isLoading: false, isRevalidating: false, error: null, lastUpdated: Date.now() })
           subscribers.notify([[]])
           config.onGet?.(result.data, result.meta)
@@ -70,7 +75,7 @@ export function createStore<T extends { id: string }>(config: StoreConfig<T> = {
           network.setStatus({ isLoading: false, isRevalidating: false, error: error as Error })
           handleError(error as Error, 'get', cleanParams, null)
           throw error
-        } finally { fetchPromise = null }
+        } finally { fetchPromise = null; inFlightKey = null }
       })()
 
       return fetchPromise
@@ -145,24 +150,10 @@ export function createStore<T extends { id: string }>(config: StoreConfig<T> = {
 
     clear(): void {
       data = null
-      lastFetchParams = null
+      lastFetchParams = {}
       network.setStatus({ isLoading: false, isRevalidating: false, error: null, lastUpdated: 0 })
       subscribers.notify([[]])
     },
-  }
-
-  async function fetchInBackground(endpoint: string, params: Record<string, string | number>): Promise<void> {
-    network.setStatus({ isRevalidating: true })
-    try {
-      const result = await apiFetch<T>({ method: 'GET', endpoint, params, dataKey: config.dataKey })
-      data = result.data
-      network.setStatus({ isRevalidating: false, error: null, lastUpdated: Date.now() })
-      subscribers.notify([[]])
-      config.onGet?.(result.data, result.meta)
-    } catch (error) {
-      network.setStatus({ isRevalidating: false, error: error as Error })
-      handleError(error as Error, 'get', params, null)
-    }
   }
 
   const proxy = wrapStoreWithProxy<Record<string, unknown>>({ getValue: () => data, subscribers })

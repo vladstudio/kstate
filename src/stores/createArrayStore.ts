@@ -4,17 +4,19 @@ import { createNetworkManager } from '../core/network'
 import { wrapStoreWithProxy } from '../core/proxy'
 import { apiFetch } from '../sync/api'
 import { getConfig } from '../config'
+import { getCached, setCache, clearCache } from '../core/cache'
 
 export function createArrayStore<T extends { id: string }>(config: ArrayStoreConfig<T> = {}): ArrayStore<T> {
   let items: T[] = []
   let meta: Record<string, unknown> = {}
-  let lastFetchParams: string | null = null
+  let lastFetchParams: Record<string, string | number> = {}
+  let inFlightKey: string | null = null
   let fetchPromise: Promise<T[]> | null = null
 
   const ttl = config.ttl ?? 60000
   const reloadOnMount = config.reloadOnMount ?? false
 
-  const doReload = () => { if (lastFetchParams !== null) storeImpl.get(JSON.parse(lastFetchParams)) }
+  const doReload = () => storeImpl.get({ ...lastFetchParams, _force: 1 })
 
   const network = createNetworkManager({
     reloadOnFocus: config.reloadOnFocus ?? false,
@@ -47,33 +49,30 @@ export function createArrayStore<T extends { id: string }>(config: ArrayStoreCon
       const force = '_force' in params
       const cleanParams = { ...params }
       delete cleanParams._force
-      const paramsKey = JSON.stringify(cleanParams)
+      const cacheKey = `${endpoint}:${JSON.stringify(cleanParams)}`
 
-      const isPagination = 'page' in cleanParams && lastFetchParams !== null && Number(cleanParams.page) > 1
-      const now = Date.now()
-      const isFresh = lastFetchParams === paramsKey && now - network.getStatus().lastUpdated < ttl
+      if (force) clearCache(cacheKey)
 
-      if (isFresh && !force && !isPagination) {
-        if (now - network.getStatus().lastUpdated > ttl / 2) fetchInBackground(endpoint, cleanParams)
+      const cached = getCached<{ data: T[]; meta: Record<string, unknown> }>(cacheKey, ttl)
+      if (cached) {
+        items = cached.data
+        meta = cached.meta
+        subscribers.notify([[]])
         return items
       }
 
-      if (fetchPromise && lastFetchParams === paramsKey && !isPagination) return fetchPromise
+      if (fetchPromise && inFlightKey === cacheKey) return fetchPromise
+      lastFetchParams = cleanParams
+      inFlightKey = cacheKey
 
-      if (!isPagination) lastFetchParams = paramsKey
-
-      network.setStatus({ isLoading: items.length === 0 && !isPagination, isRevalidating: items.length > 0 || isPagination })
+      network.setStatus({ isLoading: items.length === 0, isRevalidating: items.length > 0 })
 
       fetchPromise = (async () => {
         try {
           const result = await apiFetch<T[]>({ method: 'GET', endpoint, params: cleanParams, dataKey: config.dataKey })
-          if (isPagination) {
-            const existingIds = new Set(items.map(i => i.id))
-            items = [...items, ...result.data.filter(i => !existingIds.has(i.id))]
-          } else {
-            items = result.data
-          }
+          items = result.data
           meta = result.meta
+          setCache(cacheKey, { data: items, meta })
           network.setStatus({ isLoading: false, isRevalidating: false, error: null, lastUpdated: Date.now() })
           subscribers.notify([[]])
           config.onGet?.(items, result.meta)
@@ -82,7 +81,7 @@ export function createArrayStore<T extends { id: string }>(config: ArrayStoreCon
           network.setStatus({ isLoading: false, isRevalidating: false, error: error as Error })
           handleError(error as Error, 'get', cleanParams, null)
           throw error
-        } finally { fetchPromise = null }
+        } finally { fetchPromise = null; inFlightKey = null }
       })()
 
       return fetchPromise
@@ -212,25 +211,10 @@ export function createArrayStore<T extends { id: string }>(config: ArrayStoreCon
     clear(): void {
       items = []
       meta = {}
-      lastFetchParams = null
+      lastFetchParams = {}
       network.setStatus({ isLoading: false, isRevalidating: false, error: null, lastUpdated: 0 })
       subscribers.notify([[]])
     },
-  }
-
-  async function fetchInBackground(endpoint: string, params: Record<string, string | number>): Promise<void> {
-    network.setStatus({ isRevalidating: true })
-    try {
-      const result = await apiFetch<T[]>({ method: 'GET', endpoint, params, dataKey: config.dataKey })
-      items = result.data
-      meta = result.meta
-      network.setStatus({ isRevalidating: false, error: null, lastUpdated: Date.now() })
-      subscribers.notify([[]])
-      config.onGet?.(items, result.meta)
-    } catch (error) {
-      network.setStatus({ isRevalidating: false, error: error as Error })
-      handleError(error as Error, 'get', params, null)
-    }
   }
 
   const proxy = wrapStoreWithProxy<Record<string | number, unknown>>({ getValue: () => items, subscribers })
