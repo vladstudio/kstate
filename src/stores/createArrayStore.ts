@@ -87,13 +87,24 @@ export function createArrayStore<T extends { id: string }>(config: ArrayStoreCon
       return fetchPromise
     },
 
-    async getOne(params: { id: string }): Promise<T> {
+    async getOne(params: { id: string } & Record<string, string | number>): Promise<T> {
       const endpoint = config.endpoints?.getOne
       if (!endpoint) throw new Error('No getOne endpoint configured')
 
+      const force = '_force' in params
+      const cleanParams = { ...params }
+      delete cleanParams._force
+      const cacheKey = `${endpoint}:${JSON.stringify(cleanParams)}`
+
+      if (force) clearCache(cacheKey)
+
+      const cached = getCached<T>(cacheKey, ttl)
+      if (cached) return cached
+
       network.setStatus({ isRevalidating: true })
       try {
-        const result = await apiFetch<T>({ method: 'GET', endpoint, params, dataKey: config.dataKey })
+        const result = await apiFetch<T>({ method: 'GET', endpoint, params: cleanParams, dataKey: config.dataKey })
+        setCache(cacheKey, result.data)
         const index = findIndex(params.id)
         if (index >= 0) {
           items = items.map((item, i) => i === index ? result.data : item)
@@ -107,7 +118,7 @@ export function createArrayStore<T extends { id: string }>(config: ArrayStoreCon
         return result.data
       } catch (error) {
         network.setStatus({ isRevalidating: false, error: error as Error })
-        handleError(error as Error, 'getOne', params, null)
+        handleError(error as Error, 'getOne', cleanParams, null)
         throw error
       }
     },
