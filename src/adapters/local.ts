@@ -18,7 +18,7 @@ export function local<T extends { id: string }>(key: string, defaultValue?: T[])
 
   return {
     get: () => load(),
-    getOne: (params: { id: string }) => load().find(i => i.id === params.id)!,
+    getOne: (params: { id: string }) => load().find(i => i.id === params.id) ?? (() => { throw new Error(`Item ${params.id} not found`) })(),
     create: (data: Omit<T, 'id'> | T) => {
       const items = load()
       const item = { ...data, id: (data as T).id ?? crypto.randomUUID() } as T
@@ -29,7 +29,8 @@ export function local<T extends { id: string }>(key: string, defaultValue?: T[])
     patch: (data: Partial<T> & { id: string }) => {
       const items = load()
       const idx = items.findIndex(i => i.id === data.id)
-      if (idx >= 0) { items[idx] = { ...items[idx], ...data }; save(items) }
+      if (idx < 0) throw new Error(`Item ${data.id} not found`)
+      items[idx] = { ...items[idx], ...data }; save(items)
       return items[idx]
     },
     delete: (params: { id: string }) => {

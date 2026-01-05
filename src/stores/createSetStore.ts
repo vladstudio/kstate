@@ -78,7 +78,7 @@ export function createSetStore<T extends { id: string }>(ops: SetStoreOps<T>): S
       subscribers.notify(Object.keys(data).filter(k => k !== 'id').map(k => [idx, k]))
       try {
         const result = await ops.patch(data) as T
-        if (result && idx >= 0) {
+        if (result) {
           items = [...items.slice(0, idx), result, ...items.slice(idx + 1)]
           subscribers.notify([[idx]])
         }

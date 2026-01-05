@@ -62,7 +62,7 @@ export function createStore<T>(ops: StoreOps<T>): NewStore<T> {
       subscribers.notify([[]])
       try {
         await ops.delete(params)
-        ops.persist?.save(data as T)
+        if (data !== null) ops.persist?.save(data)
       } catch (e) { data = prev; subscribers.notify([[]]); throw e }
     },
 

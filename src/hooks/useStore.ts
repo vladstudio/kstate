@@ -25,7 +25,7 @@ export function useStore<T>(proxyOrStore: unknown): T {
       return store.subscribers.subscribe([], onStoreChange)
     }
 
-    return () => {} // No subscription possible
+    return (console.warn?.('useStore: no subscription available'), () => {})
   }, [])
 
   const getSnapshot = useCallback(() => {
