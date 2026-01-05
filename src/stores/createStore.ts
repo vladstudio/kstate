@@ -51,7 +51,7 @@ export function createStore<T>(ops: StoreOps<T>): NewStore<T> {
         const result = await ops.patch(partial) as T
         if (result) { data = result; subscribers.notify([[]]) }
         ops.persist?.save(data)
-        return data as T
+        return data
       } catch (e) { data = prev; subscribers.notify([[]]); throw e }
     },
 

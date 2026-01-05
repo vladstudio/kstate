@@ -21,14 +21,16 @@ export function sse<T extends { id: string }>(url: string, opts: SseOpts<T> = {}
       let items: T[] = []
 
       const handler = (e: MessageEvent) => {
-        let parsed = JSON.parse(e.data)
-        let data: T[] = dataKey ? parsed[dataKey] : parsed
+        let parsed: unknown
+        try { parsed = JSON.parse(e.data) } catch { return }
+        let data: T[] = dataKey ? (parsed as Record<string, T[]>)[dataKey] : parsed as T[]
         if (!Array.isArray(data)) data = [data]
 
         if (mode === 'replace') { items = data; seen.clear() }
         else if (mode === 'append') {
           const newItems = data.filter(i => { const k = dedupe(i); if (seen.has(k)) return false; seen.add(k); return true })
           items = maxItems ? [...items, ...newItems].slice(-maxItems) : [...items, ...newItems]
+          if (maxItems && seen.size > maxItems * 2) { seen.clear(); items.forEach(i => seen.add(dedupe(i))) }
         } else {
           const map = new Map(items.map(i => [i.id, i]))
           data.forEach(i => map.set(i.id, { ...map.get(i.id), ...i }))

@@ -70,14 +70,12 @@ export function createSetStore<T extends { id: string }>(ops: SetStoreOps<T>): S
     async patch(data: Partial<T> & { id: string }) {
       if (!ops.patch) throw new Error('patch not configured')
       const idx = findIdx(data.id)
+      if (idx < 0) throw new Error(`Item ${data.id} not found`)
       const prev = items[idx]
-      if (idx >= 0) {
-        const updated = { ...items[idx], ...data }
-        items = [...items.slice(0, idx), updated, ...items.slice(idx + 1)]
-      }
-      clearCache(`${cachePrefix}:one:${JSON.stringify({ id: data.id })}`)  // Invalidate item cache
-      const paths = Object.keys(data).filter(k => k !== 'id').map(k => [idx, k])
-      subscribers.notify(paths)
+      const updated = { ...items[idx], ...data }
+      items = [...items.slice(0, idx), updated, ...items.slice(idx + 1)]
+      clearCache(`${cachePrefix}:one:${JSON.stringify({ id: data.id })}`)
+      subscribers.notify(Object.keys(data).filter(k => k !== 'id').map(k => [idx, k]))
       try {
         const result = await ops.patch(data) as T
         if (result && idx >= 0) {

@@ -16,7 +16,7 @@ export function local<T extends { id: string }>(key: string, defaultValue?: T[])
 
   return {
     get: () => load(),
-    getOne: (params: { id: string }) => load().find(i => i.id === params.id) as T,
+    getOne: (params: { id: string }) => load().find(i => i.id === params.id)!,
     create: (data: Omit<T, 'id'> | T) => {
       const items = load()
       const item = { ...data, id: (data as T).id ?? crypto.randomUUID() } as T
