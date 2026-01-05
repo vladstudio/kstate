@@ -8,7 +8,8 @@ export interface Post {
 }
 
 export const posts = createSetStore<Post>({
-  ...api('/posts'),
+  ...api({ list: '/posts' }),
+  ttl: 60_000,
 })
 
 export const postCount = computed(posts, (items) => items.length)

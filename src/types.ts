@@ -70,6 +70,7 @@ export interface SetStoreOps<T extends { id: string }> {
   delete?: (params: { id: string }) => Promise<void> | void
   subscribe?: (cb: (items: T[]) => void) => () => void
   persist?: { load: () => T[]; save: (items: T[]) => void }
+  ttl?: number
 }
 
 export interface NewStore<T> {

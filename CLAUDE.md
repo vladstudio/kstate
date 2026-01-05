@@ -25,7 +25,7 @@ KState is a minimal, type-safe state management library for React with fine-grai
 - Components subscribe to specific paths; only notified when that path changes
 
 **Adapters** (`src/adapters/`)
-- `api(endpoint, opts)` - REST API adapter
+- `api({ list, item? })` - REST API adapter with separate collection/item endpoints
 - `local(key, defaultValue)` - localStorage adapter
 - `sse(url, opts)` - Server-Sent Events adapter
 - Mix adapters per-operation for maximum flexibility
@@ -44,9 +44,10 @@ KState is a minimal, type-safe state management library for React with fine-grai
 **Adapter Composition**: Mix adapters per-operation:
 ```ts
 const users = createSetStore<User>({
-  get: api('/users'),
+  ...api({ list: '/users' }),
   subscribe: sse('/users/stream'),
-  persist: local('users-cache'),
+  persist: local('users-cache').persist,
+  ttl: 60_000,
 })
 ```
 

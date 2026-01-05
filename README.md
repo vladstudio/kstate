@@ -35,11 +35,7 @@ interface User {
 }
 
 const users = createSetStore<User>({
-  get: api('/users', { dataKey: 'items' }),
-  getOne: api('/users/:id'),
-  create: api('/users'),
-  patch: api('/users/:id'),
-  delete: api('/users/:id'),
+  ...api({ list: '/users', item: '/users/:id' }),
 })
 
 // Use in components
@@ -59,20 +55,24 @@ Adapters provide the sync logic. Mix and match as needed:
 ```tsx
 import { api, local, sse } from 'kstate'
 
-// REST API
+// REST API - item defaults to list + '/:id'
 const users = createSetStore<User>({
-  ...api('/users'),
+  ...api({ list: '/users' }),
+})
+
+// Custom item endpoint for query-based APIs
+const products = createSetStore<Product>({
+  ...api({ list: '/products', item: '/products?id=:id' }),
 })
 
 // localStorage (shorthand)
 const favorites = createSetStore<Favorite>(local('favorites'))
 
-// Hybrid: API + SSE for realtime + localStorage for persistence
+// Hybrid: API + SSE for realtime + localStorage cache
 const jobs = createSetStore<Job>({
-  get: api('/jobs', { dataKey: 'items' }),
-  create: api('/jobs'),
+  ...api({ list: '/jobs' }),
   subscribe: sse('/jobs/stream', { mode: 'upsert' }),
-  persist: local('jobs-cache'),
+  persist: local('jobs-cache').persist,
 })
 ```
 

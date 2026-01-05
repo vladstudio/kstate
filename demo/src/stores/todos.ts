@@ -7,7 +7,7 @@ export interface Todo {
   completed: boolean
 }
 
-export const todos = createSetStore<Todo>({ ...api('/todos') })
+export const todos = createSetStore<Todo>({ ...api({ list: '/todos' }) })
 
 export const completedTodos = computed(todos, (items) => items.filter((t) => t.completed))
 export const pendingTodos = computed(todos, (items) => items.filter((t) => !t.completed))

@@ -11,7 +11,7 @@ export interface User {
   address: { street: string; suite: string; city: string; zipcode: string }
 }
 
-export const users = createSetStore<User>({ ...api('/users') })
+export const users = createSetStore<User>({ ...api({ list: '/users' }), ttl: 60_000 })
 
 export const userCount = computed(users, (items) => items.length)
 

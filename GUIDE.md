@@ -52,11 +52,7 @@ interface User {
 }
 
 const users = createSetStore<User>({
-  get: api('/users', { dataKey: 'items' }),
-  getOne: api('/users/:id'),
-  create: api('/users'),
-  patch: api('/users/:id'),
-  delete: api('/users/:id'),
+  ...api({ list: '/users', item: '/users/:id' }),
 })
 ```
 
@@ -78,19 +74,14 @@ users.dispose()                             // Cleanup listeners
 For managing a single object:
 
 ```tsx
-import { createStore, api } from 'kstate'
+import { createStore, local } from 'kstate'
 
-interface Profile {
-  id: string
-  name: string
-  avatar: string
+interface Settings {
+  theme: 'light' | 'dark'
+  language: string
 }
 
-const profile = createStore<Profile>({
-  get: api('/profile'),
-  set: api('/profile'),
-  patch: api('/profile'),
-})
+const settings = createStore<Settings>(local('settings', { theme: 'light', language: 'en' }))
 ```
 
 **Operations:**
@@ -108,19 +99,40 @@ profile.clear()                        // Clear
 
 Adapters provide sync logic. Mix them per-operation:
 
-### `api(endpoint, opts?)` — REST API
+### `api({ list, item?, dataKey?, requestKey? })` — REST API
 
 ```tsx
 import { api } from 'kstate'
 
+// RESTful API - item defaults to list + '/:id'
 const users = createSetStore<User>({
-  get: api('/users', { dataKey: 'items' }),      // Response: { items: [...] }
-  create: api('/users', { requestKey: 'user' }), // Request: { user: {...} }
-  patch: api('/users/:id'),                      // Path params from data.id
+  ...api({ list: '/users' }),  // item: '/users/:id' inferred
+})
+
+// Explicit item endpoint
+const posts = createSetStore<Post>({
+  ...api({ list: '/posts', item: '/posts/:id' }),
+})
+
+// Query-based API
+const products = createSetStore<Product>({
+  ...api({ list: '/products', item: '/products?id=:id' }),
+})
+
+// Nested resources
+const comments = createSetStore<Comment>({
+  ...api({ list: '/posts/:postId/comments', item: '/comments/:id' }),
+})
+
+// Response/request wrappers
+const items = createSetStore<Item>({
+  ...api({ list: '/items', dataKey: 'data', requestKey: 'item' }),
 })
 ```
 
-**Options:**
+**Config:**
+- `list` — Collection endpoint (GET all, POST create)
+- `item` — Single item endpoint (GET one, PUT, PATCH, DELETE). Defaults to `list + '/:id'`
 - `dataKey` — Extract data from response wrapper
 - `requestKey` — Wrap request body
 
@@ -132,10 +144,10 @@ import { local } from 'kstate'
 // Shorthand for local-only store
 const favorites = createSetStore<Favorite>(local('favorites'))
 
-// Or add persistence to API store
+// Add persistence to API store
 const users = createSetStore<User>({
-  ...api('/users'),
-  persist: local('users-cache'),
+  ...api({ list: '/users' }),
+  persist: local('users-cache').persist,
 })
 ```
 
@@ -145,30 +157,23 @@ const users = createSetStore<User>({
 import { sse } from 'kstate'
 
 const jobs = createSetStore<Job>({
-  get: api('/jobs'),
+  ...api({ list: '/jobs' }),
   subscribe: sse('/jobs/stream', {
     mode: 'upsert',     // 'replace' | 'append' | 'upsert'
     dataKey: 'items',
     maxItems: 100,      // For 'append' mode
   }),
 })
-
-// In component
-useEffect(() => {
-  jobs.get()  // Initial fetch
-  // SSE subscription starts automatically
-}, [])
 ```
 
 ### Hybrid Example
 
 ```tsx
 const jobs = createSetStore<Job>({
-  get: api('/jobs', { dataKey: 'items' }),
-  create: api('/jobs'),
-  patch: api('/jobs/:id'),
+  ...api({ list: '/jobs' }),
   subscribe: sse('/jobs/stream', { mode: 'upsert' }),
-  persist: local('jobs-cache'),
+  persist: local('jobs-cache').persist,
+  ttl: 60_000,  // Cache for 1 minute
 })
 ```
 
@@ -322,11 +327,7 @@ interface User {
 }
 
 export const users = createSetStore<User>({
-  get: api('/users', { dataKey: 'items' }),
-  getOne: api('/users/:id'),
-  create: api('/users'),
-  patch: api('/users/:id'),
-  delete: api('/users/:id'),
+  ...api({ list: '/users', dataKey: 'items' }),
 })
 
 export const activeUsers = computed(users, items => items.filter(u => u.isActive))
@@ -419,10 +420,9 @@ interface Job {
 }
 
 export const jobs = createSetStore<Job>({
-  get: api('/jobs', { dataKey: 'items' }),
-  create: api('/jobs'),
+  ...api({ list: '/jobs', dataKey: 'items' }),
   subscribe: sse('/jobs/stream', { mode: 'upsert' }),
-  persist: local('jobs-cache'),
+  persist: local('jobs-cache').persist,
 })
 ```
 

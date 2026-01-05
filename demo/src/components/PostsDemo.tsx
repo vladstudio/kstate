@@ -7,6 +7,7 @@ import { DemoSection } from './DemoSection'
 export function PostsDemo() {
   const items = useStore<Post[]>(posts)
   const count = useStore<number>(postCount)
+  const favs = useStore(favorites)
   const { isLoading, isRevalidating, error } = useStoreStatus(posts)
   const [page, setPage] = useState(1)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -20,7 +21,7 @@ export function PostsDemo() {
   }
 
   const toggleFavorite = (postId: string) => {
-    const existing = favorites.value.find((f: { id: string; postId: string }) => f.postId === postId)
+    const existing = favs.find((f) => f.postId === postId)
     if (existing) {
       favorites.delete({ id: existing.id })
     } else {
@@ -28,8 +29,7 @@ export function PostsDemo() {
     }
   }
 
-  const isFavorite = (postId: string) =>
-    favorites.value.some((f: { postId: string }) => f.postId === postId)
+  const isFavorite = (postId: string) => favs.some((f) => f.postId === postId)
 
   return (
     <DemoSection
