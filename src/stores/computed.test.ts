@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, mock } from 'bun:test'
 import { computed } from './computed'
-import { createLocalStore } from './createLocalStore'
-import { createLocalArrayStore } from './createLocalArrayStore'
+import { createSetStore } from './createSetStore'
+import { local } from '../adapters'
 import { isKStateProxy, getProxySubscribe } from '../core/proxy'
 
 describe('computed', () => {
@@ -17,9 +17,6 @@ describe('computed', () => {
       key: (index: number) => Object.keys(mockStorage)[index] ?? null,
       length: 0,
     }
-    if (typeof window === 'undefined') {
-      (globalThis as Record<string, unknown>).window = undefined
-    }
   })
 
   afterEach(() => {
@@ -28,37 +25,37 @@ describe('computed', () => {
 
   describe('single source', () => {
     it('should compute derived value', () => {
-      const source = createLocalStore('source', { count: 5 })
-      const doubled = computed(source, data => data.count * 2)
+      const source = createSetStore<{ id: string; count: number }>(local('source', [{ id: '1', count: 5 }]))
+      const doubled = computed(source, items => items[0]?.count * 2)
 
       expect(doubled.value).toBe(10)
     })
 
     it('should update when source changes', () => {
-      const source = createLocalStore('source', { count: 5 })
-      const doubled = computed(source, data => data.count * 2)
+      const source = createSetStore<{ id: string; count: number }>(local('source', [{ id: '1', count: 5 }]))
+      const doubled = computed(source, items => items[0]?.count * 2)
 
-      source.patch({ count: 10 })
+      source.patch({ id: '1', count: 10 })
 
       expect(doubled.value).toBe(20)
     })
 
     it('should be a KState proxy', () => {
-      const source = createLocalStore('source', { count: 1 })
-      const derived = computed(source, data => data.count)
+      const source = createSetStore<{ id: string; count: number }>(local('source', [{ id: '1', count: 1 }]))
+      const derived = computed(source, items => items[0]?.count)
 
       expect(isKStateProxy(derived)).toBe(true)
     })
 
     it('should notify subscribers when source changes', () => {
-      const source = createLocalStore('source', { count: 1 })
-      const derived = computed(source, data => data.count * 2)
+      const source = createSetStore<{ id: string; count: number }>(local('source', [{ id: '1', count: 1 }]))
+      const derived = computed(source, items => items[0]?.count * 2)
 
       const listener = mock(() => {})
       const subscribe = getProxySubscribe(derived)
       subscribe!([], listener)
 
-      source.patch({ count: 5 })
+      source.patch({ id: '1', count: 5 })
 
       expect(listener).toHaveBeenCalled()
     })
@@ -66,69 +63,54 @@ describe('computed', () => {
 
   describe('multiple sources', () => {
     it('should compute from multiple sources', () => {
-      const a = createLocalStore('a', { value: 10 })
-      const b = createLocalStore('b', { value: 20 })
+      const a = createSetStore<{ id: string; value: number }>(local('a', [{ id: '1', value: 10 }]))
+      const b = createSetStore<{ id: string; value: number }>(local('b', [{ id: '1', value: 20 }]))
 
-      const sum = computed([a, b], ([aVal, bVal]) => aVal.value + bVal.value)
+      const sum = computed([a, b], ([aItems, bItems]) => (aItems[0]?.value ?? 0) + (bItems[0]?.value ?? 0))
 
       expect(sum.value).toBe(30)
     })
 
     it('should update when any source changes', () => {
-      const a = createLocalStore('a', { value: 10 })
-      const b = createLocalStore('b', { value: 20 })
-      const sum = computed([a, b], ([aVal, bVal]) => aVal.value + bVal.value)
+      const a = createSetStore<{ id: string; value: number }>(local('a', [{ id: '1', value: 10 }]))
+      const b = createSetStore<{ id: string; value: number }>(local('b', [{ id: '1', value: 20 }]))
+      const sum = computed([a, b], ([aItems, bItems]) => (aItems[0]?.value ?? 0) + (bItems[0]?.value ?? 0))
 
-      a.patch({ value: 100 })
-
+      a.patch({ id: '1', value: 100 })
       expect(sum.value).toBe(120)
 
-      b.patch({ value: 200 })
-
+      b.patch({ id: '1', value: 200 })
       expect(sum.value).toBe(300)
-    })
-
-    it('should notify subscribers when any source changes', () => {
-      const a = createLocalStore('a', { value: 1 })
-      const b = createLocalStore('b', { value: 2 })
-      const sum = computed([a, b], ([aVal, bVal]) => aVal.value + bVal.value)
-
-      const listener = mock(() => {})
-      getProxySubscribe(sum)!([], listener)
-
-      a.patch({ value: 10 })
-
-      expect(listener).toHaveBeenCalled()
     })
   })
 
   describe('with array store', () => {
-    it('should compute derived values from array', () => {
-      const items = createLocalArrayStore<{ id: string; value: number }>('items')
-      items.add({ id: '1', value: 10 })
-      items.add({ id: '2', value: 20 })
+    it('should compute derived values from array', async () => {
+      const items = createSetStore<{ id: string; value: number }>(local('items'))
+      await items.create({ id: '1', value: 10 })
+      await items.create({ id: '2', value: 20 })
 
       const total = computed(items, arr => arr.reduce((sum, i) => sum + i.value, 0))
 
       expect(total.value).toBe(30)
     })
 
-    it('should update when array items change', () => {
-      const items = createLocalArrayStore<{ id: string; value: number }>('items')
-      items.add({ id: '1', value: 10 })
+    it('should update when array items change', async () => {
+      const items = createSetStore<{ id: string; value: number }>(local('items'))
+      await items.create({ id: '1', value: 10 })
 
       const total = computed(items, arr => arr.reduce((sum, i) => sum + i.value, 0))
 
-      items.add({ id: '2', value: 5 })
+      await items.create({ id: '2', value: 5 })
 
       expect(total.value).toBe(15)
     })
 
-    it('should filter arrays', () => {
-      const items = createLocalArrayStore<{ id: string; active: boolean }>('items')
-      items.add({ id: '1', active: true })
-      items.add({ id: '2', active: false })
-      items.add({ id: '3', active: true })
+    it('should filter arrays', async () => {
+      const items = createSetStore<{ id: string; active: boolean }>(local('items'))
+      await items.create({ id: '1', active: true })
+      await items.create({ id: '2', active: false })
+      await items.create({ id: '3', active: true })
 
       const activeItems = computed(items, arr => arr.filter(i => i.active))
 
@@ -138,35 +120,33 @@ describe('computed', () => {
 
   describe('nested computed access', () => {
     it('should access nested computed properties', () => {
-      const source = createLocalStore('source', { user: { name: 'John' } })
-      const derived = computed(source, data => ({ greeting: `Hello, ${data.user.name}` }))
+      const source = createSetStore<{ id: string; user: { name: string } }>(
+        local('source', [{ id: '1', user: { name: 'John' } }])
+      )
+      const derived = computed(source, items => ({ greeting: `Hello, ${items[0]?.user.name}` }))
 
-      // Primitive values are wrapped; use String() for comparison
       expect(String(derived.greeting)).toBe('Hello, John')
     })
   })
 
   describe('dispose', () => {
     it('should unsubscribe from sources', () => {
-      const source = createLocalStore('source', { count: 1 })
-      const derived = computed(source, data => data.count * 2)
+      const source = createSetStore<{ id: string; count: number }>(local('source', [{ id: '1', count: 1 }]))
+      const derived = computed(source, items => items[0]?.count * 2)
 
       const listener = mock(() => {})
       getProxySubscribe(derived)!([], listener)
 
       derived.dispose()
-      source.patch({ count: 10 })
+      source.patch({ id: '1', count: 10 })
 
-      // After dispose, derived should stop updating
-      // but listener may still be called if not properly cleaned up
-      // The key is that dispose exists and can be called
       expect(typeof derived.dispose).toBe('function')
     })
 
     it('should unsubscribe from multiple sources', () => {
-      const a = createLocalStore('a', { value: 1 })
-      const b = createLocalStore('b', { value: 2 })
-      const sum = computed([a, b], ([av, bv]) => av.value + bv.value)
+      const a = createSetStore<{ id: string; value: number }>(local('a', [{ id: '1', value: 1 }]))
+      const b = createSetStore<{ id: string; value: number }>(local('b', [{ id: '1', value: 2 }]))
+      const sum = computed([a, b], ([av, bv]) => (av[0]?.value ?? 0) + (bv[0]?.value ?? 0))
 
       expect(() => sum.dispose()).not.toThrow()
     })

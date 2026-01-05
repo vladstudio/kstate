@@ -1,7 +1,5 @@
-export type Operation = 'get' | 'getOne' | 'create' | 'update' | 'patch' | 'delete'
-
+export type Operation = 'get' | 'getOne' | 'create' | 'patch' | 'delete'
 export type Path = (string | number)[]
-
 export type Listener = () => void
 
 export interface ResponseMeta {
@@ -33,159 +31,8 @@ export interface KStateConfig {
   onError?: (error: Error, operation: Operation, meta: ErrorMeta) => void
 }
 
-export interface StoreConfig<T> {
-  endpoints?: {
-    get?: string
-    update?: string
-    patch?: string
-    delete?: string
-  }
-  dataKey?: string
-  requestKey?: string
-  ttl?: number
-  reloadOnMount?: boolean
-  reloadOnFocus?: boolean
-  reloadOnReconnect?: boolean
-  reloadInterval?: number
-  onGet?: (data: T, meta: ResponseMeta) => void
-  onUpdate?: (data: T, meta: ResponseMeta) => void
-  onPatch?: (data: T, meta: ResponseMeta) => void
-  onDelete?: (meta: ResponseMeta) => void
-  onError?: (error: Error, meta: ErrorMeta) => void
-}
-
-export interface ArrayStoreConfig<T> {
-  endpoints?: {
-    get?: string
-    getOne?: string
-    create?: string
-    update?: string
-    patch?: string
-    delete?: string
-  }
-  dataKey?: string
-  requestKey?: string
-  ttl?: number
-  reloadOnMount?: boolean
-  reloadOnFocus?: boolean
-  reloadOnReconnect?: boolean
-  reloadInterval?: number
-  onGet?: (data: T[], meta: ResponseMeta) => void
-  onGetOne?: (data: T, meta: ResponseMeta) => void
-  onCreate?: (data: T, meta: ResponseMeta) => void
-  onUpdate?: (data: T, meta: ResponseMeta) => void
-  onPatch?: (data: T, meta: ResponseMeta) => void
-  onDelete?: (id: string, meta: ResponseMeta) => void
-  onError?: (error: Error, meta: ErrorMeta) => void
-}
-
-export interface LocalStoreConfig<T> {
-  onSet?: (data: T) => void
-  onPatch?: (data: T) => void
-  onClear?: () => void
-}
-
-export interface LocalArrayStoreConfig<T> {
-  onAdd?: (item: T) => void
-  onUpdate?: (item: T) => void
-  onPatch?: (item: T) => void
-  onDelete?: (id: string) => void
-  onClear?: () => void
-}
-
-export interface BaseStore {
-  readonly status: StoreStatus
-  subscribeToStatus: (listener: Listener) => () => void
-  clear: () => void
-  dispose: () => void
-}
-
-export interface Store<T extends { id: string }> extends BaseStore {
-  readonly value: T | null
-  get: (params?: Record<string, string | number>) => Promise<T>
-  update: (data: T) => Promise<T>
-  patch: (data: Partial<T> & { id: string }) => Promise<T>
-  delete: (params: { id: string }) => Promise<void>
-}
-
-export interface ArrayStore<T extends { id: string }> extends BaseStore {
-  readonly value: T[]
-  readonly meta: Record<string, unknown>
-  get: (params?: Record<string, string | number>) => Promise<T[]>
-  getOne: (params: { id: string }) => Promise<T>
-  create: (data: Omit<T, 'id'>) => Promise<T>
-  update: (data: T) => Promise<T>
-  patch: (data: Partial<T> & { id: string }) => Promise<T>
-  delete: (params: { id: string }) => Promise<void>
-}
-
-export interface LocalStore<T> {
-  readonly value: T
-  get: () => T
-  set: (data: T) => void
-  patch: (data: Partial<T>) => void
-  clear: () => void
-  dispose: () => void
-}
-
-export interface LocalArrayStore<T extends { id: string }> {
-  readonly value: T[]
-  get: () => T[]
-  add: (item: T) => void
-  update: (item: T) => void
-  patch: (data: Partial<T> & { id: string }) => void
-  delete: (params: { id: string }) => void
-  clear: () => void
-  dispose: () => void
-}
-
 export interface ComputedStore<T> {
   readonly value: T
-  dispose: () => void
-}
-
-// SSE Stores
-export type SseConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'error'
-
-export interface SseStatus extends StoreStatus {
-  connectionStatus: SseConnectionStatus
-  lastEventTime: number | null
-}
-
-export interface SseArrayStoreConfig<T, P = Record<string, unknown>> {
-  url: string | ((params: P) => string)
-  mode: 'replace' | 'append' | 'upsert'
-  eventName?: string
-  dataKey?: string
-  withCredentials?: boolean
-  transform?: (raw: unknown) => T[]
-  dedupe?: (item: T) => string
-  maxItems?: number
-  persistKey?: string
-  maxRetries?: number
-  retryDelay?: number | ((attempt: number) => number)
-  heartbeatTimeout?: number
-  reconnectOnFocus?: boolean
-  reconnectOnOnline?: boolean
-  pauseOnHidden?: boolean
-  initialFetch?: { endpoint: string; dataKey?: string }
-  onConnect?: () => void
-  onMessage?: (data: T[], event: MessageEvent) => void
-  onError?: (error: Error) => void
-  onDisconnect?: () => void
-}
-
-export interface SseArrayStore<T, P = Record<string, unknown>> {
-  readonly value: T[]
-  readonly meta: Record<string, unknown>
-  readonly status: SseStatus
-  subscribeToStatus: (listener: Listener) => () => void
-  connect: (params?: P) => void
-  disconnect: () => void
-  update: (item: T) => void
-  patch: (data: Partial<T> & { id: string }) => void
-  remove: (id: string) => void
-  clear: () => void
   dispose: () => void
 }
 
@@ -204,3 +51,49 @@ export const KSTATE_PROXY = Symbol('kstate-proxy')
 export const KSTATE_PATH = Symbol('kstate-path')
 export const KSTATE_SUBSCRIBE = Symbol('kstate-subscribe')
 export const KSTATE_GET_DATA = Symbol('kstate-get-data')
+
+// Adapter-based API
+export interface StoreOps<T> {
+  get?: (params?: Record<string, unknown>) => Promise<T> | T
+  set?: (data: T) => Promise<T> | T | void
+  patch?: (data: Partial<T>) => Promise<T> | T | void
+  delete?: (params?: Record<string, unknown>) => Promise<void> | void
+  subscribe?: (cb: (data: T) => void) => () => void
+  persist?: { load: () => T | null; save: (data: T) => void }
+}
+
+export interface SetStoreOps<T extends { id: string }> {
+  get?: (params?: Record<string, unknown>) => Promise<T[]> | T[]
+  getOne?: (params: { id: string } & Record<string, unknown>) => Promise<T> | T
+  create?: (data: Omit<T, 'id'> | T) => Promise<T> | T
+  patch?: (data: Partial<T> & { id: string }) => Promise<T> | T
+  delete?: (params: { id: string }) => Promise<void> | void
+  subscribe?: (cb: (items: T[]) => void) => () => void
+  persist?: { load: () => T[]; save: (items: T[]) => void }
+}
+
+export interface NewStore<T> {
+  readonly value: T | null
+  readonly status: StoreStatus
+  get: (params?: Record<string, unknown>) => Promise<T>
+  set: (data: T) => Promise<T>
+  patch: (data: Partial<T>) => Promise<T>
+  delete: (params?: Record<string, unknown>) => Promise<void>
+  clear: () => void
+  dispose: () => void
+  subscribeToStatus: (listener: Listener) => () => void
+}
+
+export interface SetStore<T extends { id: string }> {
+  readonly value: T[]
+  readonly meta: Record<string, unknown>
+  readonly status: StoreStatus
+  get: (params?: Record<string, unknown>) => Promise<T[]>
+  getOne: (params: { id: string } & Record<string, unknown>) => Promise<T>
+  create: (data: Omit<T, 'id'> | T) => Promise<T>
+  patch: (data: Partial<T> & { id: string }) => Promise<T>
+  delete: (params: { id: string }) => Promise<void>
+  clear: () => void
+  dispose: () => void
+  subscribeToStatus: (listener: Listener) => () => void
+}

@@ -3,13 +3,13 @@ import { settings, Settings } from '../stores'
 import { DemoSection } from './DemoSection'
 
 export function SettingsDemo() {
-  const value = useStore<Settings>(settings)
-  const { theme, postsPerPage, showCompletedTodos } = value
+  const items = useStore<Settings[]>(settings)
+  const value = items[0] ?? { id: 'default', theme: 'system', postsPerPage: 10, showCompletedTodos: true }
 
   return (
     <DemoSection
       title="Settings"
-      features="localStorage store, patch updates, cross-tab sync"
+      features="localStorage store with createSetStore + local() adapter"
       note="Open in another tab to see cross-tab sync"
     >
       <div className="settings-form">
@@ -17,12 +17,12 @@ export function SettingsDemo() {
           <label>Theme</label>
           <div className="button-group">
             {(['light', 'dark', 'system'] as const).map((t) => (
-              <button key={t} className={theme === t ? 'active' : ''} onClick={() => settings.patch({ theme: t })}>
+              <button key={t} className={value.theme === t ? 'active' : ''} onClick={() => settings.patch({ id: value.id, theme: t })}>
                 {t.charAt(0).toUpperCase() + t.slice(1)}
               </button>
             ))}
           </div>
-          <span className="current-value">{theme}</span>
+          <span className="current-value">{value.theme}</span>
         </div>
 
         <div className="setting-row">
@@ -32,20 +32,20 @@ export function SettingsDemo() {
             min="5"
             max="50"
             step="5"
-            value={postsPerPage}
-            onChange={(e) => settings.patch({ postsPerPage: Number(e.target.value) })}
+            value={value.postsPerPage}
+            onChange={(e) => settings.patch({ id: value.id, postsPerPage: Number(e.target.value) })}
           />
-          <span className="current-value">{postsPerPage}</span>
+          <span className="current-value">{value.postsPerPage}</span>
         </div>
 
         <div className="setting-row">
           <label>Show completed</label>
           <input
             type="checkbox"
-            checked={showCompletedTodos}
-            onChange={(e) => settings.patch({ showCompletedTodos: e.target.checked })}
+            checked={value.showCompletedTodos}
+            onChange={(e) => settings.patch({ id: value.id, showCompletedTodos: e.target.checked })}
           />
-          <span className="current-value">{showCompletedTodos ? 'Yes' : 'No'}</span>
+          <span className="current-value">{value.showCompletedTodos ? 'Yes' : 'No'}</span>
         </div>
 
         <div className="setting-row">

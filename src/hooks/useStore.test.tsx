@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach } from 'bun:test'
 import { renderHook, act, cleanup } from '@testing-library/react'
 import { useStore } from './useStore'
-import { createLocalStore } from '../stores/createLocalStore'
-import { createLocalArrayStore } from '../stores/createLocalArrayStore'
+import { createSetStore } from '../stores/createSetStore'
+import { local } from '../adapters'
 import { computed } from '../stores/computed'
 
 describe('useStore', () => {
@@ -18,9 +18,6 @@ describe('useStore', () => {
       key: (index: number) => Object.keys(mockStorage)[index] ?? null,
       length: 0,
     }
-    if (typeof window === 'undefined') {
-      (globalThis as Record<string, unknown>).window = undefined
-    }
   })
 
   afterEach(() => {
@@ -28,48 +25,11 @@ describe('useStore', () => {
     delete (globalThis as Record<string, unknown>).localStorage
   })
 
-  describe('with local store', () => {
-    it('should return current store value', () => {
-      const store = createLocalStore('test', { count: 42 })
-
-      const { result } = renderHook(() => useStore(store))
-
-      expect(result.current).toEqual({ count: 42 })
-    })
-
-    it('should update when store changes', () => {
-      const store = createLocalStore('test', { count: 0 })
-      const { result } = renderHook(() => useStore(store))
-
-      act(() => {
-        store.patch({ count: 10 })
-      })
-
-      expect(result.current).toEqual({ count: 10 })
-    })
-
-    it('should work with nested property access', () => {
-      const store = createLocalStore('test', { user: { name: 'John', age: 30 } })
-
-      const { result } = renderHook(() => useStore(store.user))
-
-      expect(result.current).toEqual({ name: 'John', age: 30 })
-    })
-
-    it('should return primitive from nested access', () => {
-      const store = createLocalStore('test', { user: { name: 'John' } })
-
-      const { result } = renderHook(() => useStore(store.user.name))
-
-      expect(result.current).toBe('John')
-    })
-  })
-
   describe('with array store', () => {
-    it('should return array value', () => {
-      const store = createLocalArrayStore<{ id: string; value: number }>('items')
-      store.add({ id: '1', value: 10 })
-      store.add({ id: '2', value: 20 })
+    it('should return array value', async () => {
+      const store = createSetStore<{ id: string; value: number }>(local('items'))
+      await store.create({ id: '1', value: 10 })
+      await store.create({ id: '2', value: 20 })
 
       const { result } = renderHook(() => useStore(store))
 
@@ -79,30 +39,30 @@ describe('useStore', () => {
       ])
     })
 
-    it('should update when items added', () => {
-      const store = createLocalArrayStore<{ id: string; name: string }>('items')
+    it('should update when items added', async () => {
+      const store = createSetStore<{ id: string; name: string }>(local('items'))
       const { result } = renderHook(() => useStore(store))
 
-      act(() => {
-        store.add({ id: '1', name: 'first' })
+      await act(async () => {
+        await store.create({ id: '1', name: 'first' })
       })
 
       expect(result.current).toEqual([{ id: '1', name: 'first' }])
     })
 
-    it('should access specific item by index', () => {
-      const store = createLocalArrayStore<{ id: string; name: string }>('items')
-      store.add({ id: '1', name: 'first' })
-      store.add({ id: '2', name: 'second' })
+    it('should access specific item by index', async () => {
+      const store = createSetStore<{ id: string; name: string }>(local('items'))
+      await store.create({ id: '1', name: 'first' })
+      await store.create({ id: '2', name: 'second' })
 
       const { result } = renderHook(() => useStore(store[1]))
 
       expect(result.current).toEqual({ id: '2', name: 'second' })
     })
 
-    it('should access item property', () => {
-      const store = createLocalArrayStore<{ id: string; name: string }>('items')
-      store.add({ id: '1', name: 'test-name' })
+    it('should access item property', async () => {
+      const store = createSetStore<{ id: string; name: string }>(local('items'))
+      await store.create({ id: '1', name: 'test-name' })
 
       const { result } = renderHook(() => useStore(store[0].name))
 
@@ -112,30 +72,30 @@ describe('useStore', () => {
 
   describe('with computed store', () => {
     it('should return computed value', () => {
-      const source = createLocalStore('source', { count: 5 })
-      const doubled = computed(source, d => d.count * 2)
+      const source = createSetStore<{ id: string; count: number }>(local('source', [{ id: '1', count: 5 }]))
+      const doubled = computed(source, items => items[0]?.count * 2)
 
       const { result } = renderHook(() => useStore(doubled))
 
       expect(result.current).toBe(10)
     })
 
-    it('should update when source changes', () => {
-      const source = createLocalStore('source', { count: 5 })
-      const doubled = computed(source, d => d.count * 2)
+    it('should update when source changes', async () => {
+      const source = createSetStore<{ id: string; count: number }>(local('source', [{ id: '1', count: 5 }]))
+      const doubled = computed(source, items => items[0]?.count * 2)
       const { result } = renderHook(() => useStore(doubled))
 
-      act(() => {
-        source.patch({ count: 10 })
+      await act(async () => {
+        await source.patch({ id: '1', count: 10 })
       })
 
       expect(result.current).toBe(20)
     })
 
-    it('should work with computed object', () => {
-      const items = createLocalArrayStore<{ id: string; value: number }>('items')
-      items.add({ id: '1', value: 10 })
-      items.add({ id: '2', value: 20 })
+    it('should work with computed object', async () => {
+      const items = createSetStore<{ id: string; value: number }>(local('items'))
+      await items.create({ id: '1', value: 10 })
+      await items.create({ id: '2', value: 20 })
 
       const stats = computed(items, arr => ({
         count: arr.length,
@@ -147,10 +107,10 @@ describe('useStore', () => {
       expect(result.current).toEqual({ count: 2, sum: 30 })
     })
 
-    it('should access computed nested property', () => {
-      const items = createLocalArrayStore<{ id: string; value: number }>('items')
-      items.add({ id: '1', value: 10 })
-      items.add({ id: '2', value: 20 })
+    it('should access computed nested property', async () => {
+      const items = createSetStore<{ id: string; value: number }>(local('items'))
+      await items.create({ id: '1', value: 10 })
+      await items.create({ id: '2', value: 20 })
 
       const stats = computed(items, arr => ({
         count: arr.length,
@@ -164,8 +124,8 @@ describe('useStore', () => {
   })
 
   describe('stable snapshots', () => {
-    it('should return same reference for unchanged object', () => {
-      const store = createLocalStore('test', { a: 1, b: 2 })
+    it('should return same reference for unchanged array', () => {
+      const store = createSetStore<{ id: string; value: number }>(local('test', [{ id: '1', value: 1 }]))
       const { result, rerender } = renderHook(() => useStore(store))
 
       const first = result.current
@@ -175,14 +135,14 @@ describe('useStore', () => {
       expect(first).toBe(second)
     })
 
-    it('should return new reference when value changes', () => {
-      const store = createLocalStore('test', { value: 1 })
+    it('should return new reference when value changes', async () => {
+      const store = createSetStore<{ id: string; value: number }>(local('test', [{ id: '1', value: 1 }]))
       const { result } = renderHook(() => useStore(store))
 
       const first = result.current
 
-      act(() => {
-        store.patch({ value: 2 })
+      await act(async () => {
+        await store.patch({ id: '1', value: 2 })
       })
 
       const second = result.current

@@ -24,7 +24,7 @@ export function PostsDemo() {
     if (existing) {
       favorites.delete({ id: existing.id })
     } else {
-      favorites.add({ id: crypto.randomUUID(), postId, addedAt: Date.now() })
+      favorites.create({ id: crypto.randomUUID(), postId, addedAt: Date.now() })
     }
   }
 

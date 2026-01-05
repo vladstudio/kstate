@@ -1,13 +1,13 @@
 // Configuration
 export { configureKState } from './config'
 
-// Store creators
-export { createApiStore } from './stores/createApiStore'
-export { createApiArrayStore } from './stores/createApiArrayStore'
-export { createLocalStore } from './stores/createLocalStore'
-export { createLocalArrayStore } from './stores/createLocalArrayStore'
-export { createSseArrayStore } from './stores/createSseArrayStore'
+// Stores
+export { createStore } from './stores/createStore'
+export { createSetStore } from './stores/createSetStore'
 export { computed } from './stores/computed'
+
+// Adapters
+export { api, local, sse } from './adapters'
 
 // React hooks
 export { useStore } from './hooks/useStore'
@@ -15,20 +15,12 @@ export { useStoreStatus } from './hooks/useStoreStatus'
 
 // Types
 export type {
-  StoreConfig,
-  ArrayStoreConfig,
-  LocalStoreConfig,
-  LocalArrayStoreConfig,
-  SseArrayStoreConfig,
-  Store,
-  ArrayStore,
-  LocalStore,
-  LocalArrayStore,
-  SseArrayStore,
+  StoreOps,
+  SetStoreOps,
+  NewStore,
+  SetStore,
   ComputedStore,
   StoreStatus,
-  SseStatus,
-  SseConnectionStatus,
   ResponseMeta,
   ErrorMeta,
   Operation,

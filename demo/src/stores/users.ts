@@ -1,4 +1,4 @@
-import { createApiArrayStore, computed } from 'kstate'
+import { createSetStore, api, computed } from 'kstate'
 
 export interface User {
   id: string
@@ -7,27 +7,11 @@ export interface User {
   email: string
   phone: string
   website: string
-  company: {
-    name: string
-    catchPhrase: string
-    bs: string
-  }
-  address: {
-    street: string
-    suite: string
-    city: string
-    zipcode: string
-  }
+  company: { name: string; catchPhrase: string; bs: string }
+  address: { street: string; suite: string; city: string; zipcode: string }
 }
 
-export const users = createApiArrayStore<User>({
-  endpoints: {
-    get: '/users',
-    getOne: '/users/:id',
-    patch: '/users/:id',
-  },
-  ttl: 60000,
-})
+export const users = createSetStore<User>({ ...api('/users') })
 
 export const userCount = computed(users, (items) => items.length)
 

@@ -1,4 +1,4 @@
-import { createLocalArrayStore, computed } from 'kstate'
+import { createSetStore, local, computed } from 'kstate'
 
 export interface Favorite {
   id: string
@@ -6,6 +6,6 @@ export interface Favorite {
   addedAt: number
 }
 
-export const favorites = createLocalArrayStore<Favorite>('kstate-demo-favorites')
+export const favorites = createSetStore<Favorite>(local('kstate-demo-favorites'))
 
 export const favoriteCount = computed(favorites, (items) => items.length)

@@ -1,4 +1,4 @@
-import { createApiArrayStore, computed } from 'kstate'
+import { createSetStore, api, computed } from 'kstate'
 
 export interface Post {
   id: string
@@ -7,20 +7,8 @@ export interface Post {
   body: string
 }
 
-export const posts = createApiArrayStore<Post>({
-  endpoints: {
-    get: '/posts',
-    getOne: '/posts/:id',
-    create: '/posts',
-    update: '/posts/:id',
-    patch: '/posts/:id',
-    delete: '/posts/:id',
-  },
-  ttl: 30000,
-  
-  onError: (error, meta) => {
-    console.error(`[Posts] ${meta.operation} failed:`, error.message)
-  },
+export const posts = createSetStore<Post>({
+  ...api('/posts'),
 })
 
 export const postCount = computed(posts, (items) => items.length)
