@@ -42,7 +42,7 @@ export function PostsDemo() {
     >
       <div className="actions">
         <button onClick={handleCreate}>+ Create</button>
-        <button onClick={() => posts.get({ _force: 1, _limit: 10, _page: 1 })}>Refresh</button>
+        <button onClick={() => { setPage(1); posts.get({ _force: 1, _limit: 10, _page: 1 }) }}>Refresh</button>
         <button onClick={() => posts.clear()}>Clear</button>
       </div>
 
