@@ -1,5 +1,5 @@
 {
-  "name": "kstate",
+  "name": "@vladstudio/kstate",
   "version": "0.1.0",
   "description": "Minimal, type-safe state management for React with fine-grained reactivity and optimistic updates",
   "type": "module",
@@ -32,6 +32,15 @@
     "react-dom": "19.2.3",
     "typescript": "^5.9.3"
   },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/vladstudio/kstate.git"
+  },
+  "homepage": "https://github.com/vladstudio/kstate#readme",
+  "bugs": {
+    "url": "https://github.com/vladstudio/kstate/issues"
+  },
+  "author": "vladstudio",
   "keywords": [
     "react",
     "state",
