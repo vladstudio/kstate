@@ -53,7 +53,7 @@ function UserList() {
 Adapters provide the sync logic. Mix and match as needed:
 
 ```tsx
-import { api, local, sse } from 'kstate'
+import { api, queuedApi, local, sse } from 'kstate'
 
 // REST API - item defaults to list + '/:id'
 const users = createSetStore<User>({
@@ -73,6 +73,11 @@ const jobs = createSetStore<Job>({
   ...api({ list: '/jobs' }),
   subscribe: sse('/jobs/stream', { mode: 'upsert' }),
   persist: local('jobs-cache').persist,
+})
+
+// Queued API for low-priority batch operations (runs sequentially)
+const logs = createSetStore<Log>({
+  ...queuedApi({ list: '/logs' }),
 })
 ```
 

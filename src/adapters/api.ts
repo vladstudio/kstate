@@ -1,15 +1,9 @@
 import { apiFetch } from '../sync/api'
-
-interface ApiConfig {
-  list: string
-  item?: string
-  dataKey?: string
-  requestKey?: string
-}
+import type { ApiAdapterConfig } from '../types'
 
 type Params = Record<string, string | number>
 
-export function api<T extends { id: string }>(config: ApiConfig) {
+export function api<T extends { id: string }>(config: ApiAdapterConfig) {
   const { list, item = `${list}/:id`, dataKey, requestKey } = config
   const toParams = (p?: Record<string, unknown>) => p as Params | undefined
 

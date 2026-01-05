@@ -7,7 +7,7 @@ export { createSetStore } from './stores/createSetStore'
 export { computed } from './stores/computed'
 
 // Adapters
-export { api, local, sse } from './adapters'
+export { api, queuedApi, local, sse } from './adapters'
 
 // React hooks
 export { useStore } from './hooks/useStore'

@@ -136,6 +136,25 @@ const items = createSetStore<Item>({
 - `dataKey` — Extract data from response wrapper
 - `requestKey` — Wrap request body
 
+### `queuedApi({ list, item?, dataKey?, requestKey? })` — Sequential REST API
+
+Like `api`, but requests execute one at a time. Use for low-priority batch operations:
+
+```tsx
+import { queuedApi } from 'kstate'
+
+const logs = createSetStore<Log>({
+  ...queuedApi({ list: '/logs' }),
+})
+
+// 50 calls → executed sequentially, continues on errors
+for (const log of items) {
+  logs.patch({ id: log.id, synced: true })
+}
+```
+
+**Note:** All `queuedApi` instances share a single global queue. This ensures low-priority operations across your app don't compete with each other.
+
 ### `local(key, defaultValue?)` — localStorage
 
 ```tsx

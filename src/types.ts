@@ -1,4 +1,11 @@
 export type Operation = 'get' | 'getOne' | 'create' | 'patch' | 'delete'
+
+export interface ApiAdapterConfig {
+  list: string
+  item?: string
+  dataKey?: string
+  requestKey?: string
+}
 export type Path = (string | number)[]
 export type Listener = () => void
 

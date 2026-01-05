@@ -26,6 +26,7 @@ KState is a minimal, type-safe state management library for React with fine-grai
 
 **Adapters** (`src/adapters/`)
 - `api({ list, item? })` - REST API adapter with separate collection/item endpoints
+- `queuedApi({ list, item? })` - Like api, but requests run sequentially (for low-priority batch operations)
 - `local(key, defaultValue)` - localStorage adapter
 - `sse(url, opts)` - Server-Sent Events adapter
 - Mix adapters per-operation for maximum flexibility
