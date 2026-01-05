@@ -21,7 +21,7 @@ KState is a minimal, type-safe state management library for React with fine-grai
 
 **Reactive Proxy System** (`src/core/proxy.ts`, `src/core/subscribers.ts`)
 - Stores are wrapped in ES6 Proxies that track property access paths
-- When you access `store[0].name`, it builds path `[0, 'name']`
+- When you access `store['abc'].name`, it builds path `['abc', 'name']`
 - Components subscribe to specific paths; only notified when that path changes
 
 **Adapters** (`src/adapters/`)
@@ -32,12 +32,12 @@ KState is a minimal, type-safe state management library for React with fine-grai
 - Mix adapters per-operation for maximum flexibility
 
 **Stores** (`src/stores/`)
-- `createSetStore<T>` - Array of items with flexible adapter configuration
+- `createSetStore<T>` - Map of items (by id) with flexible adapter configuration
 - `createStore<T>` - Single value with flexible adapter configuration
 - `computed` - Derived stores that auto-update when sources change
 
 **React Integration** (`src/hooks/`)
-- `useStore(store)` or `useStore(store[0].name)` - Subscribes to data at any path
+- `useStore(store)` or `useStore(store['id'].name)` - Subscribes to data at any path
 - `useStoreStatus(store)` - Subscribes to loading/error/offline status
 
 ### Key Patterns
@@ -54,7 +54,7 @@ const users = createSetStore<User>({
 
 **Optimistic Updates**: `patch`, `delete` apply changes immediately, then sync. On failure, auto-rollback.
 
-**Path-Based Notifications**: When `store.patch({id: '1', name: 'New'})` is called, only subscribers to paths `[]`, `[0]`, `[0, 'name']` re-render—not `[0, 'email']` or `[1]`.
+**Path-Based Notifications**: When `store.patch({id: '1', name: 'New'})` is called, only subscribers to paths `[]`, `['1']`, `['1', 'name']` re-render—not `['1', 'email']` or `['2']`.
 
 ### Type Exports
 

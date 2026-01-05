@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react'
 import { useStore, useStoreStatus } from 'kstate'
 import { posts, Post, postCount } from '../stores'
-import { favorites } from '../stores/favorites'
+import { favorites, Favorite } from '../stores/favorites'
 import { DemoSection } from './DemoSection'
 
 export function PostsDemo() {
   const count = useStore<number>(postCount)
-  const favs = useStore(favorites)
+  const favs = useStore<Map<string, Favorite>>(favorites)
   const { isLoading, isRevalidating, error } = useStoreStatus(posts)
   const [page, setPage] = useState(1)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -55,7 +55,8 @@ export function PostsDemo() {
 
       <ul className="items-list">
         {ids.map(id => {
-          const post = posts.value.get(id)!
+          const post = posts.value.get(id)
+          if (!post) return null
           return (
             <PostItem
               key={id}

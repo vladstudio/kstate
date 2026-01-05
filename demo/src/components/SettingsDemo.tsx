@@ -2,9 +2,10 @@ import { useStore } from 'kstate'
 import { settings, Settings } from '../stores'
 import { DemoSection } from './DemoSection'
 
+const defaultSettings: Settings = { id: 'default', theme: 'system', postsPerPage: 10, showCompletedTodos: true }
+
 export function SettingsDemo() {
-  const items = useStore<Settings[]>(settings)
-  const value = items[0] ?? { id: 'default', theme: 'system', postsPerPage: 10, showCompletedTodos: true }
+  const value = useStore<Settings>(settings['default']) ?? defaultSettings
 
   return (
     <DemoSection
