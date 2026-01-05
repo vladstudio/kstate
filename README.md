@@ -182,6 +182,36 @@ const jobs = createSetStore<Job>({
 })
 ```
 
+### Custom Adapter
+
+Pass custom functions directly for any data source:
+
+```tsx
+// Inline functions
+const users = createSetStore<User>({
+  get: async () => mySource.getUsers(),
+  create: async (data) => mySource.createUser(data),
+  patch: async (data) => mySource.updateUser(data.id, data),
+  delete: async ({ id }) => mySource.deleteUser(id),
+})
+
+// Reusable adapter factory
+function myAdapter<T extends { id: string }>(source: MySource<T>) {
+  return {
+    get: async () => source.list(),
+    getOne: async ({ id }) => source.find(id),
+    create: async (data) => source.create(data),
+    patch: async (data) => source.update(data.id, data),
+    delete: async ({ id }) => source.remove(id),
+  }
+}
+
+const posts = createSetStore<Post>({
+  ...myAdapter(postsSource),
+  persist: local('posts-cache').persist,  // Mix with other adapters
+})
+```
+
 ### Hybrid Example
 
 ```tsx
