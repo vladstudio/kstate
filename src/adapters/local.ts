@@ -6,7 +6,9 @@ export function local<T extends { id: string }>(key: string, defaultValue?: T[])
       const storage = getStorage()
       if (!storage) return defaultValue ?? []
       const raw = storage.getItem(key)
-      return raw ? JSON.parse(raw) : (defaultValue ?? [])
+      if (!raw) return defaultValue ?? []
+      const parsed = JSON.parse(raw)
+      return Array.isArray(parsed) ? parsed : (defaultValue ?? [])
     } catch { return defaultValue ?? [] }
   }
   const save = (data: T[]) => {
