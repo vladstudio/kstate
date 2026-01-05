@@ -6,6 +6,7 @@ import { DemoSection } from './DemoSection'
 
 export function PostsDemo() {
   const count = useStore<number>(postCount)
+  const favs = useStore(favorites)
   const { isLoading, isRevalidating, error } = useStoreStatus(posts)
   const [page, setPage] = useState(1)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -29,7 +30,7 @@ export function PostsDemo() {
     }
   }
 
-  const isFavorite = (postId: string) => [...favorites.value.values()].some(f => f.postId === postId)
+  const isFavorite = (postId: string) => [...favs.values()].some(f => f.postId === postId)
 
   return (
     <DemoSection
