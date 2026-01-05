@@ -5,18 +5,24 @@ import { getCached, setCache, clearCache, clearCachePrefix } from '../core/cache
 import type { SetStoreOps, SetStore, Listener } from '../types'
 
 export function createSetStore<T extends { id: string }>(ops: SetStoreOps<T>): SetStore<T> {
-  let items: T[] = ops.persist?.load() ?? []
+  const persisted = ops.persist?.load() ?? []
+  let items = new Map<string, T>(persisted.map(i => [i.id, i]))
+  let ids: string[] = persisted.map(i => i.id)
   let meta: Record<string, unknown> = {}
   const subscribers = createSubscriberManager()
   const network = createNetworkManager({ reloadOnFocus: false, reloadOnReconnect: false, reloadInterval: 0, onReload: () => {} })
   const cleanups: (() => void)[] = []
   const cachePrefix = crypto.randomUUID()
 
-  if (ops.subscribe) cleanups.push(ops.subscribe(data => { items = data; subscribers.notify([[]]) }))
-  const findIdx = (id: string) => items.findIndex(i => i.id === id)
+  const setItems = (arr: T[]) => { items = new Map(arr.map(i => [i.id, i])); ids = arr.map(i => i.id) }
+  const toArray = () => ids.map(id => items.get(id)!)
+  const persist = () => ops.persist?.save(toArray())
+
+  if (ops.subscribe) cleanups.push(ops.subscribe(data => { setItems(data); subscribers.notify([[]]) }))
 
   const storeImpl = {
     get value() { return items },
+    get ids() { return ids as readonly string[] },
     get meta() { return meta },
     get status() { return network.getStatus() },
     subscribeToStatus: (l: Listener) => network.subscribeToStatus(l),
@@ -27,16 +33,17 @@ export function createSetStore<T extends { id: string }>(ops: SetStoreOps<T>): S
       const cacheKey = `${cachePrefix}:${JSON.stringify(rest)}`
       if (!_force && ops.ttl) {
         const cached = getCached<T[]>(cacheKey, ops.ttl)
-        if (cached) { items = cached.data; subscribers.notify([[]]); return items }
+        if (cached) { setItems(cached.data); subscribers.notify([[]]); return toArray() }
       }
-      network.setStatus({ isLoading: items.length === 0, isRevalidating: items.length > 0 })
+      network.setStatus({ isLoading: items.size === 0, isRevalidating: items.size > 0 })
       try {
-        items = await ops.get(rest) as T[]
-        if (ops.ttl) setCache(cacheKey, items)
-        ops.persist?.save(items)
+        const result = await ops.get(rest) as T[]
+        setItems(result)
+        if (ops.ttl) setCache(cacheKey, result)
+        persist()
         network.setStatus({ isLoading: false, isRevalidating: false, error: null, lastUpdated: Date.now() })
         subscribers.notify([[]])
-        return items
+        return toArray()
       } catch (e) { network.setStatus({ isLoading: false, isRevalidating: false, error: e as Error }); throw e }
     },
 
@@ -50,60 +57,51 @@ export function createSetStore<T extends { id: string }>(ops: SetStoreOps<T>): S
       }
       const item = await ops.getOne(rest as { id: string }) as T
       if (ops.ttl) setCache(cacheKey, item)
-      const idx = findIdx(item.id)
-      if (idx >= 0) items = [...items.slice(0, idx), item, ...items.slice(idx + 1)]
-      else items = [...items, item]
-      subscribers.notify([[idx >= 0 ? idx : items.length - 1]])
+      const isNew = !items.has(item.id)
+      items.set(item.id, item)
+      if (isNew) ids = [...ids, item.id]
+      subscribers.notify([[item.id]])
       return item
     },
 
     async create(data: Omit<T, 'id'> | T) {
       if (!ops.create) throw new Error('create not configured')
       const item = await ops.create(data) as T
-      items = [...items, item]
-      clearCachePrefix(cachePrefix + ':')  // Invalidate list caches
-      ops.persist?.save(items)
+      items.set(item.id, item)
+      ids = [...ids, item.id]
+      clearCachePrefix(cachePrefix + ':')
+      persist()
       subscribers.notify([[]])
       return item
     },
 
     async patch(data: Partial<T> & { id: string }) {
       if (!ops.patch) throw new Error('patch not configured')
-      const idx = findIdx(data.id)
-      if (idx < 0) throw new Error(`Item ${data.id} not found`)
-      const prev = items[idx]
-      const updated = { ...items[idx], ...data }
-      items = [...items.slice(0, idx), updated, ...items.slice(idx + 1)]
+      const prev = items.get(data.id)
+      if (!prev) throw new Error(`Item ${data.id} not found`)
+      items.set(data.id, { ...prev, ...data })
       clearCache(`${cachePrefix}:one:${JSON.stringify({ id: data.id })}`)
-      subscribers.notify(Object.keys(data).filter(k => k !== 'id').map(k => [idx, k]))
+      subscribers.notify(Object.keys(data).filter(k => k !== 'id').map(k => [data.id, k]))
       try {
         const result = await ops.patch(data) as T
-        if (result) {
-          items = [...items.slice(0, idx), result, ...items.slice(idx + 1)]
-          subscribers.notify([[idx]])
-        }
-        ops.persist?.save(items)
-        return items[idx]
-      } catch (e) {
-        if (idx >= 0) items = [...items.slice(0, idx), prev, ...items.slice(idx + 1)]
-        subscribers.notify([[idx]])
-        throw e
-      }
+        if (result) { items.set(data.id, result); subscribers.notify([[data.id]]) }
+        persist()
+        return items.get(data.id)!
+      } catch (e) { items.set(data.id, prev); subscribers.notify([[data.id]]); throw e }
     },
 
     async delete(params: { id: string }) {
       if (!ops.delete) throw new Error('delete not configured')
-      const prev = items
-      items = items.filter(i => i.id !== params.id)
-      clearCachePrefix(cachePrefix + ':')  // Invalidate all caches
+      const prev = items.get(params.id), prevIds = ids
+      items.delete(params.id)
+      ids = ids.filter(id => id !== params.id)
+      clearCachePrefix(cachePrefix + ':')
       subscribers.notify([[]])
-      try {
-        await ops.delete(params)
-        ops.persist?.save(items)
-      } catch (e) { items = prev; subscribers.notify([[]]); throw e }
+      try { await ops.delete(params); persist() }
+      catch (e) { if (prev) items.set(params.id, prev); ids = prevIds; subscribers.notify([[]]); throw e }
     },
 
-    clear() { items = []; meta = {}; clearCachePrefix(cachePrefix + ':'); subscribers.notify([[]]) },
+    clear() { items.clear(); ids = []; meta = {}; clearCachePrefix(cachePrefix + ':'); subscribers.notify([[]]) },
     dispose() { cleanups.forEach(fn => fn()); network.dispose() },
   }
 

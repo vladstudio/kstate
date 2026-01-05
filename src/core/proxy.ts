@@ -4,7 +4,7 @@ import { KSTATE_PROXY, KSTATE_PATH, KSTATE_SUBSCRIBE, KSTATE_GET_DATA } from '..
 // Store method names that should be retrieved from target, not data
 const STORE_METHODS = new Set([
   'get', 'set', 'patch', 'update', 'delete', 'clear', 'dispose',
-  'add', 'create', 'getOne', 'subscribeToStatus', 'status', 'meta'
+  'add', 'create', 'getOne', 'subscribeToStatus', 'status', 'meta', 'ids'
 ])
 
 // Create a proxy wrapper for primitive values that supports subscription
@@ -58,6 +58,11 @@ function createReactiveProxy(context: ProxyContext<unknown>): unknown {
         return data.length
       }
 
+      // Handle Map size property
+      if (prop === 'size' && data instanceof Map) {
+        return data.size
+      }
+
       // Handle Symbol.iterator for arrays
       if (prop === Symbol.iterator && Array.isArray(data)) {
         return function* () {
@@ -82,6 +87,27 @@ function createReactiveProxy(context: ProxyContext<unknown>): unknown {
         }
       }
 
+      // Handle Symbol.iterator for Maps (yield [key, proxy] entries)
+      if (prop === Symbol.iterator && data instanceof Map) {
+        return function* () {
+          for (const [key, item] of data) {
+            if (item === null || typeof item !== 'object') {
+              yield [key, item]
+            } else {
+              const newPath = [...context.path, key]
+              yield [key, createReactiveProxy({
+                getData: () => {
+                  const d = context.getData()
+                  return d instanceof Map ? d.get(key) : undefined
+                },
+                subscribe: context.subscribe,
+                path: newPath,
+              })]
+            }
+          }
+        }
+      }
+
       // Handle array methods
       if (Array.isArray(data) && typeof prop === 'string') {
         const arrayMethods = ['map', 'filter', 'find', 'findIndex', 'some', 'every', 'forEach', 'reduce', 'indexOf', 'includes']
@@ -91,6 +117,20 @@ function createReactiveProxy(context: ProxyContext<unknown>): unknown {
             return method.bind(data)
           }
         }
+      }
+
+      // Handle Map string key access: store['abc123'] → Map.get('abc123')
+      if (data instanceof Map && typeof prop === 'string') {
+        const value = data.get(prop)
+        const newPath = [...context.path, prop]
+        const newGetData = () => {
+          const d = context.getData()
+          return d instanceof Map ? d.get(prop) : undefined
+        }
+        if (value === null || typeof value !== 'object') {
+          return createPrimitiveProxy({ getData: newGetData, subscribe: context.subscribe, path: newPath })
+        }
+        return createReactiveProxy({ getData: newGetData, subscribe: context.subscribe, path: newPath })
       }
 
       const value = (data as Record<string | symbol, unknown>)[prop]
@@ -121,7 +161,7 @@ function createReactiveProxy(context: ProxyContext<unknown>): unknown {
   }
 
   const data = context.getData()
-  const target = (Array.isArray(data) ? [] : {}) as object
+  const target = (Array.isArray(data) ? [] : data instanceof Map ? new Map() : {}) as object
   return new Proxy(target, handler)
 }
 

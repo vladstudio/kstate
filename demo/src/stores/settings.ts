@@ -7,9 +7,5 @@ export interface Settings {
   showCompletedTodos: boolean
 }
 
-export const settings = createSetStore<Settings>(local('kstate-demo-settings', [{
-  id: 'default',
-  theme: 'system',
-  postsPerPage: 10,
-  showCompletedTodos: true,
-}]))
+const defaults: Settings[] = [{ id: 'default', theme: 'system', postsPerPage: 10, showCompletedTodos: true }]
+export const settings = createSetStore<Settings>(local('kstate-demo-settings', defaults))

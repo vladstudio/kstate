@@ -5,23 +5,23 @@ import { favorites } from '../stores/favorites'
 import { DemoSection } from './DemoSection'
 
 export function PostsDemo() {
-  const items = useStore<Post[]>(posts)
   const count = useStore<number>(postCount)
-  const favs = useStore(favorites)
   const { isLoading, isRevalidating, error } = useStoreStatus(posts)
   const [page, setPage] = useState(1)
   const [editingId, setEditingId] = useState<string | null>(null)
+  const [ids, setIds] = useState<readonly string[]>([])
 
   useEffect(() => {
-    posts.get({ _limit: 10, _page: page })
+    posts.get({ _limit: 10, _page: page }).then(() => setIds(posts.ids))
   }, [page])
 
-  const handleCreate = () => {
-    posts.create({ userId: 1, title: `Post ${Date.now()}`, body: 'New post' })
+  const handleCreate = async () => {
+    await posts.create({ userId: 1, title: `Post ${Date.now()}`, body: 'New post' })
+    setIds(posts.ids)
   }
 
   const toggleFavorite = (postId: string) => {
-    const existing = favs.find((f) => f.postId === postId)
+    const existing = [...favorites.value.values()].find(f => f.postId === postId)
     if (existing) {
       favorites.delete({ id: existing.id })
     } else {
@@ -29,21 +29,21 @@ export function PostsDemo() {
     }
   }
 
-  const isFavorite = (postId: string) => favs.some((f) => f.postId === postId)
+  const isFavorite = (postId: string) => [...favorites.value.values()].some(f => f.postId === postId)
 
   return (
     <DemoSection
       title="Posts"
-      features="API array store with pagination, CRUD, optimistic updates"
+      features="API set store with pagination, CRUD, optimistic updates"
       badge={`${count} loaded`}
-      isLoading={isLoading && items.length === 0}
+      isLoading={isLoading && ids.length === 0}
       isRevalidating={isRevalidating}
       error={error}
     >
       <div className="actions">
         <button onClick={handleCreate}>+ Create</button>
-        <button onClick={() => { setPage(1); posts.get({ _force: 1, _limit: 10, _page: 1 }) }}>Refresh</button>
-        <button onClick={() => posts.clear()}>Clear</button>
+        <button onClick={() => { setPage(1); posts.get({ _force: 1, _limit: 10, _page: 1 }).then(() => setIds(posts.ids)) }}>Refresh</button>
+        <button onClick={() => { posts.clear(); setIds([]) }}>Clear</button>
       </div>
 
       <div className="pagination">
@@ -53,19 +53,22 @@ export function PostsDemo() {
       </div>
 
       <ul className="items-list">
-        {items.map((post) => (
-          <PostItem
-            key={post.id}
-            post={post}
-            isEditing={editingId === post.id}
-            isFavorite={isFavorite(post.id)}
-            onEdit={() => setEditingId(post.id)}
-            onSave={(title) => { posts.patch({ id: post.id, title }); setEditingId(null) }}
-            onCancel={() => setEditingId(null)}
-            onDelete={() => posts.delete({ id: post.id })}
-            onToggleFavorite={() => toggleFavorite(post.id)}
-          />
-        ))}
+        {ids.map(id => {
+          const post = posts.value.get(id)!
+          return (
+            <PostItem
+              key={id}
+              post={post}
+              isEditing={editingId === id}
+              isFavorite={isFavorite(id)}
+              onEdit={() => setEditingId(id)}
+              onSave={(title) => { posts.patch({ id, title }); setEditingId(null) }}
+              onCancel={() => setEditingId(null)}
+              onDelete={() => { posts.delete({ id }); setIds(posts.ids) }}
+              onToggleFavorite={() => toggleFavorite(id)}
+            />
+          )
+        })}
       </ul>
     </DemoSection>
   )

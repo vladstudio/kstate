@@ -4,19 +4,26 @@ import { wrapStoreWithProxy, type StoreInternals, isKStateProxy, getProxySubscri
 
 interface SourceStore { value: unknown }
 
+// Unwrap Map to array for SetStore, else pass through
+type UnwrapValue<T> = T extends Map<string, infer U> ? U[] : T
+
+// Single source - Map<string, T> unwraps to T[]
 export function computed<T, R>(
-  source: SourceStore & { value: T },
-  selector: (value: T) => R
+  source: { value: T },
+  selector: (value: UnwrapValue<T>) => R
 ): ComputedStore<R>
 
-export function computed<T extends unknown[], R>(
-  sources: { [K in keyof T]: SourceStore & { value: T[K] } },
-  selector: (values: T) => R
-): ComputedStore<R>
-
+// Multiple sources (values array - Maps unwrapped)
 export function computed<R>(
-  sourceOrSources: SourceStore | SourceStore[],
-  selector: (value: unknown) => R
+  sources: { value: unknown }[],
+  selector: (values: unknown[]) => R
+): ComputedStore<R>
+
+// Implementation
+export function computed<R>(
+  sourceOrSources: { value: unknown } | { value: unknown }[],
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  selector: (value: any) => R
 ): ComputedStore<R> {
   const isSingleSource = isKStateProxy(sourceOrSources) || !Array.isArray(sourceOrSources)
   const sources: SourceStore[] = isSingleSource ? [sourceOrSources as SourceStore] : sourceOrSources as SourceStore[]
@@ -38,9 +45,10 @@ export function computed<R>(
 
   const getValue = (): R => {
     if (cacheValid) return cachedValue!
+    const unwrap = (v: unknown) => v instanceof Map ? [...v.values()] : v
     cachedValue = isSingleSource
-      ? selector((sourceOrSources as SourceStore).value)
-      : selector(sources.map(s => s.value))
+      ? selector(unwrap((sourceOrSources as SourceStore).value))
+      : selector(sources.map(s => unwrap(s.value)))
     cacheValid = true
     return cachedValue
   }
@@ -52,7 +60,6 @@ export function computed<R>(
 
   const storeInternals: StoreInternals = { getValue, subscribers }
   const proxy = wrapStoreWithProxy<Record<string, unknown>>(storeInternals)
-  const descriptors = Object.getOwnPropertyDescriptors(storeImpl)
-  Object.defineProperties(proxy, descriptors)
+  Object.defineProperties(proxy, Object.getOwnPropertyDescriptors(storeImpl))
   return proxy as unknown as ComputedStore<R>
 }

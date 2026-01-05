@@ -17,9 +17,9 @@ export function StatsDemo() {
   const { isLoading: todosLoading } = useStoreStatus(todos)
 
   useEffect(() => {
-    if (posts.value.length === 0) posts.get({ _limit: 50 })
-    if (users.value.length === 0) users.get()
-    if (todos.value.length === 0) todos.get({ _limit: 50 })
+    if (posts.value.size === 0) posts.get({ _limit: 50 })
+    if (users.value.size === 0) users.get()
+    if (todos.value.size === 0) todos.get({ _limit: 50 })
   }, [])
 
   const isLoading = postsLoading || usersLoading || todosLoading

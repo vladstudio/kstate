@@ -93,9 +93,11 @@ export interface NewStore<T> {
 }
 
 export interface SetStore<T extends { id: string }> {
-  readonly value: T[]
+  readonly value: Map<string, T>
+  readonly ids: readonly string[]
   readonly meta: Record<string, unknown>
   readonly status: StoreStatus
+  readonly [id: string]: T | unknown  // ID-based proxy access
   get: (params?: Record<string, unknown>) => Promise<T[]>
   getOne: (params: { id: string } & Record<string, unknown>) => Promise<T>
   create: (data: Omit<T, 'id'> | T) => Promise<T>

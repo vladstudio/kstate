@@ -35,9 +35,9 @@ configureKState({
 
 ## Stores
 
-### `createSetStore` — Array of items
+### `createSetStore` — Collection of items
 
-For managing arrays of objects with `id`:
+For managing collections of objects with unique `id`. Uses `Map<id, T>` internally for O(1) lookups:
 
 ```tsx
 import { createSetStore, api } from 'kstate'
@@ -235,8 +235,13 @@ Subscribe to store data:
 import { useStore } from 'kstate'
 
 function UserList() {
-  const items = useStore(users)
-  return items.map(u => <div key={u.id}>{u.name}</div>)
+  const ids = users.ids  // string[] - ordered IDs
+  return ids.map(id => <UserRow key={id} id={id} />)
+}
+
+function UserRow({ id }: { id: string }) {
+  const user = useStore(users[id])  // subscribe to specific item
+  return <div>{user.name}</div>
 }
 ```
 
@@ -270,13 +275,13 @@ function UserList() {
 Subscribe to specific paths — components only re-render when that exact value changes:
 
 ```tsx
-function UserName({ index }: { index: number }) {
-  const name = useStore(users[index].name)  // Only re-renders on name change
+function UserName({ id }: { id: string }) {
+  const name = useStore(users[id].name)  // Only re-renders on name change
   return <span>{name}</span>
 }
 
-function UserEmail({ index }: { index: number }) {
-  const email = useStore(users[index].email)  // Only re-renders on email change
+function UserEmail({ id }: { id: string }) {
+  const email = useStore(users[id].email)  // Only re-renders on email change
   return <span>{email}</span>
 }
 ```
@@ -284,16 +289,17 @@ function UserEmail({ index }: { index: number }) {
 **How paths work:**
 
 ```tsx
-useStore(users)            // Path: []           - All changes
-useStore(users[0])         // Path: [0]          - First item changes
-useStore(users[0].name)    // Path: [0, 'name']  - First item's name only
+useStore(users)              // Path: []              - All changes
+useStore(users['abc'])       // Path: ['abc']         - Item 'abc' changes
+useStore(users['abc'].name)  // Path: ['abc', 'name'] - Item's name only
 ```
 
-When `users.patch({ id: '1', name: 'New' })` is called:
+When `users.patch({ id: 'abc', name: 'New' })` is called:
 - `useStore(users)` — re-renders (ancestor)
-- `useStore(users[0])` — re-renders (ancestor)
-- `useStore(users[0].name)` — re-renders (exact match)
-- `useStore(users[0].email)` — **does NOT** re-render (sibling)
+- `useStore(users['abc'])` — re-renders (ancestor)
+- `useStore(users['abc'].name)` — re-renders (exact match)
+- `useStore(users['abc'].email)` — **does NOT** re-render (sibling)
+- `useStore(users['xyz'])` — **does NOT** re-render (different ID)
 
 ---
 
@@ -385,7 +391,7 @@ import { useStore, useStoreStatus } from 'kstate'
 import { users, activeUsers } from '../stores/users'
 
 export function UserList() {
-  const items = useStore(activeUsers)
+  const active = useStore(activeUsers)  // computed returns array
   const { isLoading, error } = useStoreStatus(users)
 
   useEffect(() => { users.get() }, [])
@@ -395,13 +401,18 @@ export function UserList() {
 
   return (
     <ul>
-      {items.map(user => (
-        <li key={user.id}>
-          {user.name}
-          <button onClick={() => users.delete({ id: user.id })}>Delete</button>
-        </li>
-      ))}
+      {active.map(u => <UserRow key={u.id} id={u.id} />)}
     </ul>
+  )
+}
+
+function UserRow({ id }: { id: string }) {
+  const name = useStore(users[id].name)  // fine-grained subscription
+  return (
+    <li>
+      {name}
+      <button onClick={() => users.delete({ id })}>Delete</button>
+    </li>
   )
 }
 ```
@@ -436,7 +447,7 @@ function CartSummary() {
 
 function AddToCart({ product }: { product: Product }) {
   const handleAdd = () => {
-    const existing = cart.value.find(i => i.productId === product.id)
+    const existing = [...cart.value.values()].find(i => i.productId === product.id)
     if (existing) {
       cart.patch({ id: existing.id, quantity: existing.quantity + 1 })
     } else {
@@ -475,14 +486,14 @@ export const jobs = createSetStore<Job>({
 ```tsx
 // components/Jobs.tsx
 function JobList() {
-  const items = useStore(jobs)
-
   useEffect(() => { jobs.get() }, [])
 
-  return items.map(job => (
-    <div key={job.id}>
-      {job.status}: {job.url}
-    </div>
-  ))
+  return jobs.ids.map(id => <JobRow key={id} id={id} />)
+}
+
+function JobRow({ id }: { id: string }) {
+  const status = useStore(jobs[id].status)
+  const url = useStore(jobs[id].url)
+  return <div>{status}: {url}</div>
 }
 ```

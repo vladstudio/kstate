@@ -1,68 +1,66 @@
 import { useEffect, useRef, useState } from 'react'
 import { useStore, useStoreStatus } from 'kstate'
-import { users, User } from '../stores'
+import { users } from '../stores'
 import { DemoSection } from './DemoSection'
 
 export function FineGrainedDemo() {
   const { isLoading } = useStoreStatus(users)
   const [ready, setReady] = useState(false)
+  const [ids, setIds] = useState<readonly string[]>([])
 
   useEffect(() => {
-    if (users.value.length === 0) {
-      users.get().then(() => setReady(true))
+    if (users.value.size === 0) {
+      users.get().then(() => { setIds(users.ids.slice(0, 5)); setReady(true) })
     } else {
-      setReady(true)
+      setIds(users.ids.slice(0, 5)); setReady(true)
     }
   }, [])
 
   return (
     <DemoSection
       title="Fine-Grained Reactivity"
-      features="Path-based subscriptions - components re-render only when their specific data changes"
+      features="ID-based subscriptions - components re-render only when their specific data changes"
       note="Click Update - only that field's component re-renders"
       isLoading={isLoading || !ready}
     >
       <div className="fine-grained-grid">
-        {[0, 1, 2, 3, 4].map((i) => <UserRow key={i} index={i} />)}
+        {ids.map(id => <UserRow key={id} id={id} />)}
       </div>
 
       <div className="code-example">
         <h4>How it works:</h4>
-        <pre>{`// Path-based subscriptions
-const name = useStore(users[index].name)
-// Only re-renders when users[index].name changes
+        <pre>{`// ID-based subscriptions
+const name = useStore(users[id].name)
+// Only re-renders when users[id].name changes
 
-users.patch({ id: '1', name: 'New' })
-// → Only name subscribers re-render`}</pre>
+users.patch({ id: 'abc', name: 'New' })
+// → Only name subscribers for 'abc' re-render`}</pre>
       </div>
     </DemoSection>
   )
 }
 
-function UserRow({ index }: { index: number }) {
+function UserRow({ id }: { id: string }) {
   const renderCount = useRef(0)
   renderCount.current++
 
   return (
     <div className="user-row-demo">
       <div className="row-header">
-        <span>User {index}</span>
+        <span>User {id}</span>
         <span className="render-count">Row: {renderCount.current}</span>
       </div>
       <div className="row-fields">
-        <FieldCell index={index} field="name" label="Name" editable />
-        <FieldCell index={index} field="email" label="Email" editable />
-        <FieldCell index={index} field="address.city" label="City" />
+        <FieldCell id={id} field="name" label="Name" editable />
+        <FieldCell id={id} field="email" label="Email" editable />
+        <CityCell id={id} />
       </div>
     </div>
   )
 }
 
-function FieldCell({ index, field, label, editable }: { index: number; field: string; label: string; editable?: boolean }) {
-  const userProxy = (users as unknown as Record<number, User>)[index]
-  const path = field.split('.').reduce((obj, key) => (obj as Record<string, unknown>)[key], userProxy as unknown)
-  const value = useStore<string>(path as unknown as string)
-  const id = useStore<string>((userProxy as unknown as Record<string, string>).id)
+function FieldCell({ id, field, label, editable }: { id: string; field: 'name' | 'email'; label: string; editable?: boolean }) {
+  const value = useStore<string>((users[id] as { name: string; email: string })[field] as unknown)
   const renderCount = useRef(0)
   renderCount.current++
 
@@ -78,6 +76,20 @@ function FieldCell({ index, field, label, editable }: { index: number; field: st
       <span className="field-value">{value}</span>
       <span className="render-count">renders: {renderCount.current}</span>
       {editable && <button onClick={handleUpdate} className="small">Update</button>}
+    </div>
+  )
+}
+
+function CityCell({ id }: { id: string }) {
+  const city = useStore<string>((users[id] as { address: { city: string } }).address.city as unknown)
+  const renderCount = useRef(0)
+  renderCount.current++
+
+  return (
+    <div className="field-cell">
+      <label>City</label>
+      <span className="field-value">{city}</span>
+      <span className="render-count">renders: {renderCount.current}</span>
     </div>
   )
 }
