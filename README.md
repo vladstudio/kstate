@@ -25,9 +25,6 @@ configureKState({
     const token = localStorage.getItem('token')
     return token ? { Authorization: `Bearer ${token}` } : {}
   },
-  onError: (error, operation, meta) => {
-    console.error(`[KState] ${operation} failed:`, error.message)
-  }
 })
 ```
 
@@ -71,14 +68,17 @@ users.dispose()                             // Cleanup listeners
 For managing a single object:
 
 ```tsx
-import { createStore, local } from 'kstate'
+import { createStore, api } from 'kstate'
 
-interface Settings {
-  theme: 'light' | 'dark'
-  language: string
+interface Profile {
+  id: string
+  name: string
+  email: string
 }
 
-const settings = createStore<Settings>(local('settings', { theme: 'light', language: 'en' }))
+const profile = createStore<Profile>({
+  ...api({ list: '/profile' }),
+})
 ```
 
 **Operations:**
@@ -175,9 +175,12 @@ import { sse } from 'kstate'
 const jobs = createSetStore<Job>({
   ...api({ list: '/jobs' }),
   subscribe: sse('/jobs/stream', {
-    mode: 'upsert',     // 'replace' | 'append' | 'upsert'
-    dataKey: 'items',
-    maxItems: 100,      // For 'append' mode
+    mode: 'upsert',          // 'replace' | 'append' | 'upsert' (default: 'replace')
+    eventName: 'message',    // SSE event name (default: 'message')
+    dataKey: 'items',        // Extract from response wrapper
+    maxItems: 100,           // Limit items for 'append' mode
+    dedupe: (item) => item.id,  // Custom deduplication key
+    withCredentials: true,   // Send cookies (default: true)
   }),
 })
 ```
