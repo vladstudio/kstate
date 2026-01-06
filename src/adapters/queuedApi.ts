@@ -1,32 +1,23 @@
 import { api } from './api'
 import type { ApiAdapterConfig } from '../types'
 
-type QueuedTask = () => Promise<unknown>
-
-const queue: QueuedTask[] = []
-let running = false
-
-async function processQueue() {
-  if (running) return
-  running = true
-  while (queue.length > 0) {
-    const task = queue.shift()!
-    try { await task() } catch { /* continue on error */ }
+function createQueue() {
+  const queue: (() => Promise<unknown>)[] = []
+  let running = false
+  async function process() {
+    if (running) return
+    running = true
+    while (queue.length > 0) { try { await queue.shift()!() } catch { /* continue */ } }
+    running = false
   }
-  running = false
-}
-
-function enqueue<T>(task: () => Promise<T>): Promise<T> {
-  return new Promise((resolve, reject) => {
-    queue.push(async () => {
-      try { resolve(await task()) } catch (e) { reject(e) }
-    })
-    processQueue()
+  return <T>(task: () => Promise<T>): Promise<T> => new Promise((resolve, reject) => {
+    queue.push(async () => { try { resolve(await task()) } catch (e) { reject(e) } })
+    process()
   })
 }
 
 export function queuedApi<T extends { id: string }>(config: ApiAdapterConfig) {
-  const base = api<T>(config)
+  const base = api<T>(config), enqueue = createQueue()
   return {
     get: (params?: Record<string, unknown>) => enqueue(() => base.get(params)),
     getOne: (params: { id: string } & Record<string, unknown>) => enqueue(() => base.getOne(params)),

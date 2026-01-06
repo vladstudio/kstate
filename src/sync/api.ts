@@ -101,7 +101,7 @@ export async function apiFetch<T>(options: FetchOptions): Promise<FetchResult<T>
     } catch {
       // Keep default message
     }
-    throw new Error(message)
+    throw new Error(`${options.method} ${options.endpoint}: ${message}`)
   }
 
   // Handle empty response (204 No Content)

@@ -49,8 +49,17 @@ function createReactiveProxy(context: ProxyContext<unknown>): unknown {
       }
 
       const data = context.getData()
+
+      // When data is null/undefined, return a proxy that allows continued chaining
+      // This enables patterns like users[id].address.city to work even when user doesn't exist
       if (data === null || data === undefined) {
-        return undefined
+        const newPath = [...context.path, prop as string | number]
+        const newGetData = () => {
+          const d = context.getData()
+          if (d === null || d === undefined) return undefined
+          return (d as Record<string | symbol, unknown>)[prop]
+        }
+        return createReactiveProxy({ getData: newGetData, subscribe: context.subscribe, path: newPath })
       }
 
       // Handle array length property
@@ -127,10 +136,12 @@ function createReactiveProxy(context: ProxyContext<unknown>): unknown {
           const d = context.getData()
           return d instanceof Map ? d.get(prop) : undefined
         }
-        if (value === null || typeof value !== 'object') {
-          return createPrimitiveProxy({ getData: newGetData, subscribe: context.subscribe, path: newPath })
+        // Return reactive proxy for objects OR undefined/null (to allow chaining like users[id].address.city)
+        if (value === undefined || value === null || typeof value === 'object') {
+          return createReactiveProxy({ getData: newGetData, subscribe: context.subscribe, path: newPath })
         }
-        return createReactiveProxy({ getData: newGetData, subscribe: context.subscribe, path: newPath })
+        // Only primitives (string, number, boolean) get primitive proxy
+        return createPrimitiveProxy({ getData: newGetData, subscribe: context.subscribe, path: newPath })
       }
 
       const value = (data as Record<string | symbol, unknown>)[prop]

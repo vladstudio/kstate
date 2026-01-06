@@ -10,6 +10,7 @@ export function useStore<T>(proxyOrStore: unknown): T {
 
   const subscribe = useCallback((onStoreChange: Listener) => {
     const current = proxyRef.current
+    if (current == null) return () => {}
 
     if (isKStateProxy(current)) {
       const path = getProxyPath(current)
@@ -39,6 +40,7 @@ export function useStore<T>(proxyOrStore: unknown): T {
     }
 
     // Fallback: try to access value directly
+    if (current == null) return undefined
     const store = current as { value?: unknown }
     return store.value
   }, [])

@@ -42,7 +42,9 @@ describe('wrapStoreWithProxy', () => {
 
     const proxy = wrapStoreWithProxy<{ name: string } | null>(store)
 
-    expect((proxy as { name?: string }).name).toBeUndefined()
+    // Accessing a property on null data returns a proxy (for chaining), but its value is undefined
+    const nameProxy = (proxy as { name?: string }).name
+    expect(getProxyGetData(nameProxy)?.()).toBeUndefined()
   })
 
   it('should support array iteration', () => {
