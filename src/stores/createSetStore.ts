@@ -71,6 +71,7 @@ export function createSetStore<T extends { id: string }>(ops: SetStoreOps<T>): S
       if (!ops.create) throw new Error('create not configured')
       const item = await ops.create(data) as T
       const itemWithStringId = { ...item, id: String(item.id) }
+      items = new Map(items)
       items.set(itemWithStringId.id, itemWithStringId)
       ids = [...ids, itemWithStringId.id]
       clearCachePrefix(cachePrefix + ':')
@@ -98,16 +99,17 @@ export function createSetStore<T extends { id: string }>(ops: SetStoreOps<T>): S
     async delete(params: { id: string }) {
       if (!ops.delete) throw new Error('delete not configured')
       const id = String(params.id)
-      const prev = items.get(id), prevIds = ids
+      const prevIds = ids, prevItems = items
+      items = new Map(items)
       items.delete(id)
       ids = ids.filter(i => i !== id)
       clearCachePrefix(cachePrefix + ':')
       subscribers.notify([[]])
       try { await ops.delete(params); persist() }
-      catch (e) { if (prev) items.set(id, prev); ids = prevIds; subscribers.notify([[]]); throw e }
+      catch (e) { items = prevItems; ids = prevIds; subscribers.notify([[]]); throw e }
     },
 
-    clear() { items.clear(); ids = []; meta = {}; clearCachePrefix(cachePrefix + ':'); subscribers.notify([[]]) },
+    clear() { items = new Map(); ids = []; meta = {}; clearCachePrefix(cachePrefix + ':'); subscribers.notify([[]]) },
     dispose() { cleanups.forEach(fn => fn()); network.dispose() },
   }
 

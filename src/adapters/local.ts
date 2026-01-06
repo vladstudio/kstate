@@ -1,24 +1,20 @@
-const getStorage = () => typeof localStorage !== 'undefined' ? localStorage : (globalThis as { localStorage?: Storage }).localStorage
+const getStorage = () => typeof localStorage !== 'undefined' ? localStorage : null
 
 export function local<T extends { id: string }>(key: string, defaultValue?: T[]) {
-  const load = (): T[] => {
-    try {
-      const storage = getStorage()
-      if (!storage) return defaultValue ?? []
-      const raw = storage.getItem(key)
-      if (!raw) return defaultValue ?? []
-      const parsed = JSON.parse(raw)
-      return Array.isArray(parsed) ? parsed : (defaultValue ?? [])
-    } catch { return defaultValue ?? [] }
+  const parse = (raw: string | null): T[] => {
+    if (!raw) return defaultValue ?? []
+    try { const p = JSON.parse(raw); return Array.isArray(p) ? p : (defaultValue ?? []) } catch { return defaultValue ?? [] }
   }
-  const save = (data: T[]) => {
-    const storage = getStorage()
-    if (storage) storage.setItem(key, JSON.stringify(data))
-  }
+  const load = (): T[] => parse(getStorage()?.getItem(key) ?? null)
+  const save = (data: T[]) => getStorage()?.setItem(key, JSON.stringify(data))
 
   return {
     get: () => load(),
-    getOne: (params: { id: string }) => load().find(i => i.id === params.id) ?? (() => { throw new Error(`Item ${params.id} not found`) })(),
+    getOne: (params: { id: string }) => {
+      const item = load().find(i => i.id === params.id)
+      if (!item) throw new Error(`Item ${params.id} not found`)
+      return item
+    },
     create: (data: Omit<T, 'id'> | T) => {
       const items = load()
       const item = { ...data, id: (data as T).id ?? crypto.randomUUID() } as T
@@ -30,12 +26,11 @@ export function local<T extends { id: string }>(key: string, defaultValue?: T[])
       const items = load()
       const idx = items.findIndex(i => i.id === data.id)
       if (idx < 0) throw new Error(`Item ${data.id} not found`)
-      items[idx] = { ...items[idx], ...data }; save(items)
+      items[idx] = { ...items[idx], ...data }
+      save(items)
       return items[idx]
     },
-    delete: (params: { id: string }) => {
-      save(load().filter(i => i.id !== params.id))
-    },
+    delete: (params: { id: string }) => save(load().filter(i => i.id !== params.id)),
     persist: { load, save },
   }
 }
