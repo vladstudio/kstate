@@ -4,6 +4,8 @@ import { KSTATE_PROXY, KSTATE_PATH, KSTATE_SUBSCRIBE, KSTATE_GET_DATA } from '..
 const STORE_METHODS = new Set(['get', 'set', 'patch', 'update', 'delete', 'clear', 'dispose', 'add', 'create', 'getOne', 'subscribeToStatus', 'status', 'meta', 'ids'])
 const ARRAY_METHODS = new Set(['map', 'filter', 'find', 'findIndex', 'some', 'every', 'forEach', 'reduce', 'indexOf', 'includes'])
 
+const isNumeric = (s: string) => s.length > 0 && s.charCodeAt(0) >= 48 && s.charCodeAt(0) <= 57 && Number(s) == (s as unknown)
+
 function createPrimitiveProxy(ctx: ProxyContext<unknown>): unknown {
   return {
     [KSTATE_PROXY]: true, [KSTATE_PATH]: ctx.path, [KSTATE_SUBSCRIBE]: ctx.subscribe, [KSTATE_GET_DATA]: ctx.getData,
@@ -16,17 +18,26 @@ function createPrimitiveProxy(ctx: ProxyContext<unknown>): unknown {
   }
 }
 
-function createNestedProxy(ctx: ProxyContext<unknown>, prop: string | symbol, getter: () => unknown): unknown {
-  const newCtx = { getData: getter, subscribe: ctx.subscribe, path: [...ctx.path, prop as string | number] }
-  const value = getter()
+function createNestedProxy(ctx: ProxyContext<unknown>, prop: string | number, getter: () => unknown, value: unknown): unknown {
+  const path = ctx.path.length === 0 ? [prop] : ctx.path.concat(prop)
+  const newCtx = { getData: getter, subscribe: ctx.subscribe, path }
   return (value === null || typeof value !== 'object') ? createPrimitiveProxy(newCtx) : createReactiveProxy(newCtx)
 }
 
-function* iterateWithProxies<K>(ctx: ProxyContext<unknown>, entries: Iterable<[K, unknown]>, getItem: (k: K) => unknown, isMap: boolean) {
-  for (const [key, item] of entries) {
-    if (item === null || typeof item !== 'object') { yield isMap ? [key, item] : item; continue }
-    const proxy = createReactiveProxy({ getData: () => getItem(key), subscribe: ctx.subscribe, path: [...ctx.path, key as string | number] })
-    yield isMap ? [key, proxy] : proxy
+function* iterateArray(ctx: ProxyContext<unknown>, data: unknown[]) {
+  for (let i = 0; i < data.length; i++) {
+    const item = data[i]
+    if (item === null || typeof item !== 'object') { yield item; continue }
+    const path = ctx.path.length === 0 ? [i] : ctx.path.concat(i)
+    yield createReactiveProxy({ getData: () => (ctx.getData() as unknown[])?.[i], subscribe: ctx.subscribe, path })
+  }
+}
+
+function* iterateMap(ctx: ProxyContext<unknown>, data: Map<unknown, unknown>) {
+  for (const [key, item] of data) {
+    if (item === null || typeof item !== 'object') { yield [key, item]; continue }
+    const path = ctx.path.length === 0 ? [key as string] : ctx.path.concat(key as string)
+    yield [key, createReactiveProxy({ getData: () => (ctx.getData() as Map<unknown, unknown>)?.get(key), subscribe: ctx.subscribe, path })]
   }
 }
 
@@ -46,11 +57,11 @@ function createReactiveProxy(ctx: ProxyContext<unknown>): unknown {
 
       const data = ctx.getData()
 
-      if (data === null || data === undefined) {
+      if (data == null) {
+        const path = ctx.path.length === 0 ? [prop as string] : ctx.path.concat(prop as string)
         return createReactiveProxy({
           getData: () => { const d = ctx.getData(); return d == null ? undefined : (d as Record<string | symbol, unknown>)[prop] },
-          subscribe: ctx.subscribe,
-          path: [...ctx.path, prop as string | number],
+          subscribe: ctx.subscribe, path,
         })
       }
 
@@ -58,8 +69,8 @@ function createReactiveProxy(ctx: ProxyContext<unknown>): unknown {
       if (prop === 'size' && data instanceof Map) return data.size
 
       if (prop === Symbol.iterator) {
-        if (Array.isArray(data)) return function* () { yield* iterateWithProxies(ctx, data.map((v, i) => [i, v]), i => (ctx.getData() as unknown[])?.[i as number], false) }
-        if (data instanceof Map) return function* () { yield* iterateWithProxies(ctx, data, k => (ctx.getData() as Map<unknown, unknown>)?.get(k), true) }
+        if (Array.isArray(data)) return function* () { yield* iterateArray(ctx, data) }
+        if (data instanceof Map) return function* () { yield* iterateMap(ctx, data) }
       }
 
       if (Array.isArray(data) && typeof prop === 'string' && ARRAY_METHODS.has(prop)) {
@@ -68,14 +79,16 @@ function createReactiveProxy(ctx: ProxyContext<unknown>): unknown {
       }
 
       if (data instanceof Map && typeof prop === 'string') {
-        return createNestedProxy(ctx, prop, () => (ctx.getData() as Map<string, unknown>)?.get(prop))
+        const value = data.get(prop)
+        return createNestedProxy(ctx, prop, () => (ctx.getData() as Map<string, unknown>)?.get(prop), value)
       }
 
-      const pathKey = typeof prop === 'string' && /^\d+$/.test(prop) ? Number(prop) : prop
-      return createNestedProxy(ctx, pathKey as string, () => {
+      const pathKey = typeof prop === 'string' && isNumeric(prop) ? Number(prop) : prop as string
+      const value = (data as Record<string | symbol, unknown>)[prop]
+      return createNestedProxy(ctx, pathKey, () => {
         const d = ctx.getData()
         return d == null ? undefined : (d as Record<string | symbol, unknown>)[prop]
-      })
+      }, value)
     },
   }
   const data = ctx.getData()
@@ -93,13 +106,13 @@ export function isKStateProxy(value: unknown): boolean {
 }
 
 export function getProxyPath(proxy: unknown): Path {
-  return isKStateProxy(proxy) ? (proxy as Record<symbol, Path>)[KSTATE_PATH] : []
+  return (proxy as Record<symbol, Path>)[KSTATE_PATH] ?? []
 }
 
 export function getProxySubscribe(proxy: unknown): ((path: Path, listener: Listener) => () => void) | null {
-  return isKStateProxy(proxy) ? (proxy as Record<symbol, (path: Path, listener: Listener) => () => void>)[KSTATE_SUBSCRIBE] : null
+  return (proxy as Record<symbol, (path: Path, listener: Listener) => () => void>)[KSTATE_SUBSCRIBE] ?? null
 }
 
 export function getProxyGetData(proxy: unknown): (() => unknown) | null {
-  return isKStateProxy(proxy) ? (proxy as Record<symbol, () => unknown>)[KSTATE_GET_DATA] : null
+  return (proxy as Record<symbol, () => unknown>)[KSTATE_GET_DATA] ?? null
 }

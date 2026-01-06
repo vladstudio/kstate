@@ -1,55 +1,47 @@
 import type { Path, Listener, SubscriberManager } from '../types'
 
-interface Subscription {
-  path: Path
-  listener: Listener
-}
+interface Subscription { path: Path; listener: Listener }
 
 export function createSubscriberManager(onFirstSubscribe?: () => void): SubscriberManager {
-  const subscriptions = new Set<Subscription>()
+  const rootSubs = new Set<Subscription>()
+  const indexedSubs = new Map<string | number, Set<Subscription>>()
   let hadSubscribers = false
 
   function subscribe(path: Path, listener: Listener): () => void {
-    const subscription: Subscription = { path, listener }
-    subscriptions.add(subscription)
-    if (!hadSubscribers && onFirstSubscribe) {
-      hadSubscribers = true
-      onFirstSubscribe()
+    const sub: Subscription = { path, listener }
+    if (path.length === 0) {
+      rootSubs.add(sub)
+    } else {
+      const key = path[0]
+      let set = indexedSubs.get(key)
+      if (!set) { set = new Set(); indexedSubs.set(key, set) }
+      set.add(sub)
     }
-    return () => { subscriptions.delete(subscription) }
+    if (!hadSubscribers && onFirstSubscribe) { hadSubscribers = true; onFirstSubscribe() }
+    return () => {
+      if (path.length === 0) rootSubs.delete(sub)
+      else indexedSubs.get(path[0])?.delete(sub)
+    }
   }
 
   function notify(changedPaths: Path[]): void {
-    if (subscriptions.size === 0) return
+    if (rootSubs.size === 0 && indexedSubs.size === 0) return
     const toCall = new Set<Listener>()
-    for (const sub of subscriptions) {
-      if (shouldNotify(sub.path, changedPaths)) toCall.add(sub.listener)
-    }
-    toCall.forEach(fn => fn())
-  }
-
-  function shouldNotify(subscribedPath: Path, changedPaths: Path[]): boolean {
-    for (const changedPath of changedPaths) {
-      if (pathMatches(subscribedPath, changedPath)) {
-        return true
+    for (const changed of changedPaths) {
+      for (const sub of rootSubs) toCall.add(sub.listener)
+      if (changed.length === 0) {
+        for (const set of indexedSubs.values()) for (const sub of set) toCall.add(sub.listener)
+      } else {
+        const set = indexedSubs.get(changed[0])
+        if (set) for (const sub of set) if (pathMatches(sub.path, changed)) toCall.add(sub.listener)
       }
     }
-    return false
+    for (const fn of toCall) fn()
   }
 
   function pathMatches(subscribed: Path, changed: Path): boolean {
-    // Subscribed to root → always notify
-    if (subscribed.length === 0) return true
-    // Changed at root → notify everyone
-    if (changed.length === 0) return true
-    // Check if paths overlap
     const minLen = Math.min(subscribed.length, changed.length)
-    for (let i = 0; i < minLen; i++) {
-      if (subscribed[i] !== changed[i]) {
-        return false
-      }
-    }
-    // Paths overlap: either subscribed is ancestor or descendant of changed
+    for (let i = 0; i < minLen; i++) if (subscribed[i] !== changed[i]) return false
     return true
   }
 

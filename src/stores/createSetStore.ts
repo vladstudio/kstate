@@ -4,11 +4,14 @@ import { wrapStoreWithProxy } from '../core/proxy'
 import { getCached, setCache, clearCache, clearCachePrefix } from '../core/cache'
 import type { SetStoreOps, SetStore, Listener } from '../types'
 
-const stableKey = (o: Record<string, unknown>) => JSON.stringify(Object.keys(o).sort().reduce((a, k) => (a[k] = o[k], a), {} as typeof o))
+const stableKey = (o: Record<string, unknown>) => {
+  const keys = Object.keys(o).sort()
+  return keys.length === 0 ? '' : keys.map(k => `${k}=${o[k]}`).join('&')
+}
 
 export function createSetStore<T extends { id: string }>(ops: SetStoreOps<T>): SetStore<T> {
   const persisted = ops.persist?.load() ?? []
-  let items = new Map<string, T>(persisted.map(i => [String(i.id), { ...i, id: String(i.id) }]))
+  let items = new Map<string, T>(persisted.map(i => [String(i.id), typeof i.id === 'string' ? i : { ...i, id: String(i.id) }]))
   let ids: string[] = persisted.map(i => String(i.id))
   let meta: Record<string, unknown> = {}
   const subscribers = createSubscriberManager()
@@ -16,7 +19,11 @@ export function createSetStore<T extends { id: string }>(ops: SetStoreOps<T>): S
   const cleanups: (() => void)[] = []
   const cachePrefix = crypto.randomUUID()
 
-  const setItems = (arr: T[]) => { items = new Map(arr.map(i => [String(i.id), { ...i, id: String(i.id) }])); ids = arr.map(i => String(i.id)) }
+  const setItems = (arr: T[]) => {
+    items = new Map(arr.map(i => [String(i.id), typeof i.id === 'string' ? i : { ...i, id: String(i.id) }]))
+    ids = arr.map(i => String(i.id))
+  }
+  const mutate = () => { items = new Map(items) } // New reference for React
   const toArray = () => ids.map(id => items.get(id)!)
   const persist = () => ops.persist?.save(toArray())
 
@@ -58,26 +65,28 @@ export function createSetStore<T extends { id: string }>(ops: SetStoreOps<T>): S
         if (cached) return cached.data
       }
       const item = await ops.getOne(rest as { id: string }) as T
-      const itemWithStringId = { ...item, id: String(item.id) }
-      if (ops.ttl) setCache(cacheKey, itemWithStringId)
-      const isNew = !items.has(itemWithStringId.id)
-      items.set(itemWithStringId.id, itemWithStringId)
-      if (isNew) ids = [...ids, itemWithStringId.id]
-      subscribers.notify([[itemWithStringId.id]])
-      return itemWithStringId
+      const id = String(item.id)
+      const normalized = typeof item.id === 'string' ? item : { ...item, id }
+      if (ops.ttl) setCache(cacheKey, normalized)
+      mutate()
+      if (!items.has(id)) ids.push(id)
+      items.set(id, normalized)
+      subscribers.notify([[id]])
+      return normalized
     },
 
     async create(data: Omit<T, 'id'> | T) {
       if (!ops.create) throw new Error('create not configured')
       const item = await ops.create(data) as T
-      const itemWithStringId = { ...item, id: String(item.id) }
-      items = new Map(items)
-      items.set(itemWithStringId.id, itemWithStringId)
-      ids = [...ids, itemWithStringId.id]
+      const id = String(item.id)
+      const normalized = typeof item.id === 'string' ? item : { ...item, id }
+      mutate()
+      items.set(id, normalized)
+      ids.push(id)
       clearCachePrefix(cachePrefix + ':')
       persist()
       subscribers.notify([[]])
-      return itemWithStringId
+      return normalized
     },
 
     async patch(data: Partial<T> & { id: string }) {
@@ -85,12 +94,15 @@ export function createSetStore<T extends { id: string }>(ops: SetStoreOps<T>): S
       const id = String(data.id)
       const prev = items.get(id)
       if (!prev) throw new Error(`Item ${id} not found`)
+      mutate()
       items.set(id, { ...prev, ...data, id })
-      clearCache(`${cachePrefix}:one:${JSON.stringify({ id })}`)
-      subscribers.notify(Object.keys(data).filter(k => k !== 'id').map(k => [id, k]))
+      clearCache(`${cachePrefix}:one:id=${id}`)
+      const changedKeys = Object.keys(data)
+      const paths: (string | number)[][] = changedKeys.length > 1 ? changedKeys.filter(k => k !== 'id').map(k => [id, k]) : [[id]]
+      subscribers.notify(paths)
       try {
         const result = await ops.patch(data) as T
-        if (result) { items.set(id, { ...result, id: String(result.id) }); subscribers.notify([[id]]) }
+        if (result) { items.set(id, typeof result.id === 'string' ? result : { ...result, id }); subscribers.notify([[id]]) }
         persist()
         return items.get(id)!
       } catch (e) { items.set(id, prev); subscribers.notify([[id]]); throw e }
@@ -99,14 +111,14 @@ export function createSetStore<T extends { id: string }>(ops: SetStoreOps<T>): S
     async delete(params: { id: string }) {
       if (!ops.delete) throw new Error('delete not configured')
       const id = String(params.id)
-      const prevIds = ids, prevItems = items
-      items = new Map(items)
+      const prevItem = items.get(id), prevIdx = ids.indexOf(id)
+      mutate()
       items.delete(id)
-      ids = ids.filter(i => i !== id)
+      if (prevIdx >= 0) ids.splice(prevIdx, 1)
       clearCachePrefix(cachePrefix + ':')
       subscribers.notify([[]])
       try { await ops.delete(params); persist() }
-      catch (e) { items = prevItems; ids = prevIds; subscribers.notify([[]]); throw e }
+      catch (e) { if (prevItem) { items.set(id, prevItem); ids.splice(prevIdx, 0, id) }; subscribers.notify([[]]); throw e }
     },
 
     clear() { items = new Map(); ids = []; meta = {}; clearCachePrefix(cachePrefix + ':'); subscribers.notify([[]]) },

@@ -1,6 +1,6 @@
 import { useSyncExternalStore, useCallback, useRef } from 'react'
 import type { Path, Listener } from '../types'
-import { isKStateProxy, getProxyPath, getProxySubscribe, getProxyGetData } from '../core/proxy'
+import { getProxyPath, getProxySubscribe, getProxyGetData } from '../core/proxy'
 
 export function useStore<T>(proxyOrStore: unknown): T {
   const proxyRef = useRef(proxyOrStore)
@@ -9,10 +9,8 @@ export function useStore<T>(proxyOrStore: unknown): T {
   const subscribe = useCallback((onStoreChange: Listener) => {
     const current = proxyRef.current
     if (current == null) return () => {}
-    if (isKStateProxy(current)) {
-      const subscribeFn = getProxySubscribe(current)
-      if (subscribeFn) return subscribeFn(getProxyPath(current), onStoreChange)
-    }
+    const subscribeFn = getProxySubscribe(current)
+    if (subscribeFn) return subscribeFn(getProxyPath(current), onStoreChange)
     const store = current as { subscribers?: { subscribe: (path: Path, listener: Listener) => () => void } }
     if (store.subscribers?.subscribe) return store.subscribers.subscribe([], onStoreChange)
     return (console.warn?.('useStore: no subscription available'), () => {})
@@ -20,10 +18,8 @@ export function useStore<T>(proxyOrStore: unknown): T {
 
   const getSnapshot = useCallback(() => {
     const current = proxyRef.current
-    if (isKStateProxy(current)) {
-      const getData = getProxyGetData(current)
-      if (getData) return getData()
-    }
+    const getData = getProxyGetData(current)
+    if (getData) return getData()
     if (current == null) return undefined
     return (current as { value?: unknown }).value
   }, [])
