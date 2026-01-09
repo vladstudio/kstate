@@ -121,6 +121,7 @@ export function createSetStore<T extends { id: string }>(ops: SetStoreOps<T>): S
       catch (e) { if (prevItem) { items.set(id, prevItem); ids.splice(prevIdx, 0, id) }; subscribers.notify([[]]); throw e }
     },
 
+    upsert(item: T) { const id = String(item.id); if (!items.has(id)) ids.push(id); items.set(id, item); subscribers.notify([[id]]) },
     clear() { items = new Map(); ids = []; meta = {}; clearCachePrefix(cachePrefix + ':'); subscribers.notify([[]]) },
     dispose() { cleanups.forEach(fn => fn()); network.dispose() },
   }

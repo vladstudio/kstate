@@ -103,6 +103,7 @@ export interface SetStore<T extends { id: string }> {
   create: (data: Omit<T, 'id'> | T) => Promise<T>
   patch: (data: Partial<T> & { id: string }) => Promise<T>
   delete: (params: { id: string }) => Promise<void>
+  upsert: (item: T) => void
   clear: () => void
   dispose: () => void
   subscribeToStatus: (listener: Listener) => () => void
