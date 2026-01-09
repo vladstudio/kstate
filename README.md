@@ -1,3 +1,5 @@
+**WARNING: This is an experiment. The API will change.**
+
 # KState
 
 Minimal, type-safe state management for React SPAs with fine-grained reactivity, optimistic updates, and flexible adapters.
