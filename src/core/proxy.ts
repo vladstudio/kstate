@@ -1,7 +1,7 @@
 import type { Path, Listener, SubscriberManager, ProxyContext } from '../types'
 import { KSTATE_PROXY, KSTATE_PATH, KSTATE_SUBSCRIBE, KSTATE_GET_DATA } from '../types'
 
-const STORE_METHODS = new Set(['get', 'set', 'patch', 'update', 'delete', 'clear', 'dispose', 'add', 'create', 'getOne', 'subscribeToStatus', 'status', 'meta', 'ids'])
+const STORE_METHODS = new Set(['get', 'set', 'patch', 'update', 'delete', 'clear', 'dispose', 'add', 'create', 'getOne', 'upsert', 'subscribeToStatus', 'status', 'meta', 'ids'])
 const ARRAY_METHODS = new Set(['map', 'filter', 'find', 'findIndex', 'some', 'every', 'forEach', 'reduce', 'indexOf', 'includes'])
 
 const isNumeric = (s: string) => s.length > 0 && s.charCodeAt(0) >= 48 && s.charCodeAt(0) <= 57 && Number(s) == (s as unknown)

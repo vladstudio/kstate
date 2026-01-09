@@ -51,5 +51,8 @@
     "signals",
     "proxy"
   ],
-  "license": "MIT"
+  "license": "MIT",
+  "dependencies": {
+    "@vladstudio/kstate": "0.1.3"
+  }
 }
