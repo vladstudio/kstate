@@ -110,9 +110,11 @@ export function getProxyPath(proxy: unknown): Path {
 }
 
 export function getProxySubscribe(proxy: unknown): ((path: Path, listener: Listener) => () => void) | null {
+  if (proxy == null) return null
   return (proxy as Record<symbol, (path: Path, listener: Listener) => () => void>)[KSTATE_SUBSCRIBE] ?? null
 }
 
 export function getProxyGetData(proxy: unknown): (() => unknown) | null {
+  if (proxy == null) return null
   return (proxy as Record<symbol, () => unknown>)[KSTATE_GET_DATA] ?? null
 }
